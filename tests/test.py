@@ -49,11 +49,11 @@ def test_clean_data_sorted():
     assert df["DateTime"].is_monotonic_increasing, "Data must be sorted by time"
 
 
-def test_create_target_binary():
-    """Target should be binary (0 or 1)."""
+def test_create_target_multiclass():
+    """Target should be multi-class (0, 1, 2)."""
     df = clean_data(load_raw_data())
     df = create_target(df, horizon=1)
-    assert set(df["target"].unique()).issubset({0, 1})
+    assert set(df["target"].unique()).issubset({0, 1, 2})
 
 
 def test_create_target_no_nan():
@@ -118,7 +118,7 @@ def test_walk_forward_splits():
 
 def test_build_dataset_shapes():
     """build_dataset returns consistent shapes."""
-    X_train, y_train, X_test, y_test, feat_cols, df = build_dataset()
+    X_train, y_train, X_test, y_test, feat_cols, df, _ = build_dataset()
     assert X_train.shape[0] == len(y_train)
     assert X_test.shape[0] == len(y_test)
     assert X_train.shape[1] == len(feat_cols)
@@ -128,7 +128,7 @@ def test_build_dataset_shapes():
 
 def test_no_nan_in_features():
     """Final feature matrices should have no NaN."""
-    X_train, _, X_test, _, _, _ = build_dataset()
+    X_train, _, X_test, _, _, _, _ = build_dataset()
     assert not np.isnan(X_train).any(), "NaN in X_train"
     assert not np.isnan(X_test).any(), "NaN in X_test"
 
@@ -136,7 +136,7 @@ def test_no_nan_in_features():
 def test_multiple_horizons():
     """Pipeline should work for different horizons."""
     for h in [1, 4, 24]:
-        X_train, y_train, X_test, y_test, feat_cols, df = build_dataset(horizon=h)
+        X_train, y_train, X_test, y_test, feat_cols, df, _ = build_dataset(horizon=h)
         assert X_train.shape[0] > 0
         assert X_test.shape[0] > 0
-        assert set(np.unique(y_train)).issubset({0, 1})
+        assert set(np.unique(y_train)).issubset({0, 1, 2})

@@ -37,17 +37,30 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def create_target(df: pd.DataFrame, horizon: int = HORIZON) -> pd.DataFrame:
+def create_target(df: pd.DataFrame, horizon: int = HORIZON, threshold: float = 0.001) -> pd.DataFrame:
     """
-    Create binary target: 1 if Close price `horizon` bars ahead > current Close, else 0.
-    Rows where target cannot be computed (last `horizon` rows) are dropped.
+    Create multiclass target:
+      2 (up) if future_return > threshold
+      0 (down) if future_return < -threshold
+      1 (flat) otherwise
+    Drops last `horizon` rows where future is unknown.
+    Also keeps `future_return` for backtesting.
     """
     df = df.copy()
     future_close = df["Close"].shift(-horizon)
     valid_mask = future_close.notna()
     df = df[valid_mask].copy()
     future_close = future_close[valid_mask]
-    df["target"] = (future_close > df["Close"]).astype(int)
+    
+    df["future_return"] = (future_close / df["Close"]) - 1
+    
+    conditions = [
+        df["future_return"] > threshold,
+        df["future_return"] < -threshold
+    ]
+    choices = [2, 0]
+    df["target"] = np.select(conditions, choices, default=1)
+    
     return df
 
 
@@ -89,6 +102,23 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     df["return_8"] = close.pct_change(8)
     df["return_24"] = close.pct_change(24)
 
+    # Price acceleration
+    df["return_1_diff"] = df["return_1"].diff()
+
+    # Up/down sequences
+    pos_ret = (df["return_1"] > 0).astype(int)
+    df["pos_bars_last_4"] = pos_ret.rolling(4).sum()
+
+    # Candle body to range ratio
+    tr1 = df["High"] - df["Low"]
+    df["body_to_range"] = (df["Close"] - df["Open"]).abs() / tr1.replace(0, np.nan)
+
+    # True Range and Normalized ATR
+    tr2 = (df["High"] - close.shift(1)).abs()
+    tr3 = (df["Low"] - close.shift(1)).abs()
+    df["tr"] = pd.DataFrame({"tr1": tr1, "tr2": tr2, "tr3": tr3}).max(axis=1)
+    df["atr_14"] = df["tr"].rolling(14).mean() / close
+
     for lag in [1, 2, 3, 4, 8]:
         df[f"close_lag_{lag}_ratio"] = close / close.shift(lag)
 
@@ -96,8 +126,16 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         df[f"rolling_mean_{window}"] = close.rolling(window).mean()
         df[f"rolling_std_{window}"] = close.rolling(window).std()
         df[f"dev_from_ma_{window}"] = (close - df[f"rolling_mean_{window}"]) / df[f"rolling_mean_{window}"]
+        
+        if window in [12, 24]:
+            # Z-scores
+            df[f"zscore_price_{window}"] = (close - df[f"rolling_mean_{window}"]) / df[f"rolling_std_{window}"].replace(0, np.nan)
+            
+            vol_mean = df["Volume"].rolling(window).mean()
+            vol_std = df["Volume"].rolling(window).std()
+            df[f"zscore_vol_{window}"] = (df["Volume"] - vol_mean) / vol_std.replace(0, np.nan)
 
-    df["hl_range"] = (df["High"] - df["Low"]) / df["Close"]
+    df["hl_range"] = tr1 / close
     df["hl_range_rolling_6"] = df["hl_range"].rolling(6).mean()
 
     df["volume_ma_6"] = df["Volume"].rolling(6).mean()
@@ -136,7 +174,7 @@ def get_feature_columns(df: pd.DataFrame) -> list:
         "DateTime", "Date", "Time", "Year", "Month", "Day", "Hour",
         "Open", "High", "Low", "Close", "Volume",
         "Price_Change", "Price_Change_Percent",
-        "target",
+        "target", "future_return", "tr",
         "rolling_mean_6", "rolling_mean_12", "rolling_mean_24", "rolling_mean_48",
         "volume_ma_6", "volume_ma_24",
     }
@@ -191,7 +229,7 @@ def prepare_features(df: pd.DataFrame):
     return df, feature_cols
 
 
-def build_dataset(horizon: int = HORIZON, test_frac: float = 0.2):
+def build_dataset(horizon: int = HORIZON, threshold: float = 0.001, test_frac: float = 0.2):
     """
     End-to-end pipeline: load → clean → features → target → split.
     Returns (X_train, y_train, X_test, y_test, feature_cols, df_full).
@@ -199,7 +237,7 @@ def build_dataset(horizon: int = HORIZON, test_frac: float = 0.2):
     df = load_raw_data()
     df = clean_data(df)
     df = add_features(df)
-    df = create_target(df, horizon=horizon)
+    df = create_target(df, horizon=horizon, threshold=threshold)
 
     feature_cols = get_feature_columns(df)
     df = df.dropna(subset=feature_cols).reset_index(drop=True)
@@ -210,11 +248,12 @@ def build_dataset(horizon: int = HORIZON, test_frac: float = 0.2):
     y_train = train["target"].values
     X_test = test[feature_cols].values
     y_test = test["target"].values
+    future_rets_test = test["future_return"]
 
-    return X_train, y_train, X_test, y_test, feature_cols, df
+    return X_train, y_train, X_test, y_test, feature_cols, df, future_rets_test
 
 
-def build_full_df(horizon: int = HORIZON):
+def build_full_df(horizon: int = HORIZON, threshold: float = 0.001):
     """
     Load → clean → features → target → drop NaN.
     Returns (df, feature_cols) without splitting.
@@ -222,7 +261,7 @@ def build_full_df(horizon: int = HORIZON):
     df = load_raw_data()
     df = clean_data(df)
     df = add_features(df)
-    df = create_target(df, horizon=horizon)
+    df = create_target(df, horizon=horizon, threshold=threshold)
     feature_cols = get_feature_columns(df)
     df = df.dropna(subset=feature_cols).reset_index(drop=True)
     return df, feature_cols

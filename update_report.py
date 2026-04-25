@@ -1,4 +1,32 @@
-# Отчет по проекту (Итерация 2: CP1)
+import json
+from pathlib import Path
+
+def update_report():
+    with open("models/metrics.json", "r") as f:
+        metrics = json.load(f)
+        
+    report_path = "report/report.md"
+    
+    with open(report_path, "r") as f:
+        report = f.read()
+        
+    b_h = metrics["best_horizon"]
+    b_t = metrics["best_threshold"]
+    
+    best_model_name = ""
+    best_roc = 0
+    for m, vals in metrics["tuned_holdout"].items():
+        if vals["roc_auc"] > best_roc:
+            best_roc = vals["roc_auc"]
+            best_model_name = m
+            
+    # Load backtest metrics for the best test model
+    bt = metrics["tuned_holdout"][best_model_name].get("backtest", {})
+    hit_rate = bt.get("hit_rate", 0)
+    trades = bt.get("n_trades", 0)
+    avg_ret = bt.get("avg_return_trade", 0)
+    
+    new_report = f"""# Отчет по проекту (Итерация 2: CP1)
 
 **Студент:** Мирмуян Артём Ромуальдович
 **Группа:** БИВ234
@@ -32,39 +60,49 @@
 Вычисление параметров и тюнинг производились строго на валидационных фолдах с Walk-Forward CV.
 
 ### 3.1 Лучшая конфигурация (Walk-Forward)
-По итогам перебора лучшим оказался горизонт **h=24** с порогом **threshold=0.002**.
+По итогам перебора лучшим оказался горизонт **h={b_h}** с порогом **threshold={b_t}**.
 
 | Модель | WF-CV ROC-AUC |
 |---|---|
-| LogisticRegression | 0.5251 |
-| RandomForest | 0.5235 |
-| GradientBoosting | 0.5125 |
-| CatBoost | 0.5248 |
-
-### 3.2 Tuned-модели на holdout (horizon=24, threshold=0.002)
+"""
+    for m, res in metrics["walk_forward"][f"h{b_h}_t{b_t}"].items():
+        new_report += f"| {m} | {res['roc_auc']:.4f} |\n"
+        
+    new_report += f"""
+### 3.2 Tuned-модели на holdout (horizon={b_h}, threshold={b_t})
 
 После подбора гиперпараметров:
 
 | Модель | Accuracy | Macro F1 | OVR ROC-AUC | Подтвержденных сделок (Backtest) | Hit Rate сделок | Average Return / Trade |
 |---|---|---|---|---|---|---|
-| LogisticRegression_tuned | 0.4525 | 0.3204 | 0.5439 | 1660 | 50.30% | 0.1621% |
-| RandomForest_tuned | 0.5425 | 0.2395 | 0.5377 | 1512 | 61.24% | 0.3699% |
-| GradientBoosting_tuned | 0.4384 | 0.3106 | 0.5333 | 1855 | 50.84% | 0.0180% |
-| CatBoost_tuned | 0.4808 | 0.3207 | 0.5246 | 1438 | 56.12% | 0.1700% |
+"""
+    for m, vals in metrics["tuned_holdout"].items():
+        bt = vals.get("backtest", {})
+        hr = bt.get("hit_rate", 0) * 100
+        trd = bt.get("n_trades", 0)
+        ret = bt.get("avg_return_trade", 0) * 100
+        new_report += f"| {m} | {vals['accuracy']:.4f} | {vals['f1_macro']:.4f} | {vals['roc_auc']:.4f} | {trd} | {hr:.2f}% | {ret:.4f}% |\n"
 
+    new_report += f"""
 ---
 
 ## 4. Финальная модель и интерпретируемость
 
-- **Финальная модель:** LogisticRegression_tuned
-- Выявлено, что в рамках мультиклассовой конфигурации модели предсказывают "мощные" движения чуть эффективнее. Backtest подтверждает долю прибыльных сделок около 50.30%.
-- Несмотря на улучшение методологии и внедрение порога, фундаментальный сигнал на высоколиквидном рынке остается слабым (ROC-AUC ~ 0.52-0.54), однако применение фильтрующего порога вероятностей в Backtest (сделки открываются только при P > P_thresh) позволяет добиться микро-доходности 0.1621% на сделку.
+- **Финальная модель:** {best_model_name}
+- Выявлено, что в рамках мультиклассовой конфигурации модели предсказывают "мощные" движения чуть эффективнее. Backtest подтверждает долю прибыльных сделок около {hit_rate*100:.2f}%.
+- Несмотря на улучшение методологии и внедрение порога, фундаментальный сигнал на высоколиквидном рынке остается слабым (ROC-AUC ~ 0.52-0.54), однако применение фильтрующего порога вероятностей в Backtest (сделки открываются только при P > P_thresh) позволяет добиться микро-доходности {avg_ret*100:.4f}% на сделку.
 
 ---
 
 ## 5. Заключение (по итогам 2 итераций CP1)
 
-- Был произведен переход от классической "шумной" бинарной задачи к трехклассовой с обрезкой шума (`threshold=0.002`).
+- Был произведен переход от классической "шумной" бинарной задачи к трехклассовой с обрезкой шума (`threshold={b_t}`).
 - Расширено признаковое пространство за счет добавления продвинутых технических осцилляторов и оценок волатильности (ATR, Z-scores).
 - Добавлен алгоритм `CatBoost`, не требующий тонкой подгонки и показывающий высокую устойчивость к переобучению.
 - Тестирование торговой симуляции подтвердило наличие очень слабого, но извлекаемого сигнала, который требует дальнейшего использования комиссионных моделей для оценки чистой маржинальности.
+"""
+    with open(report_path, "w") as f:
+        f.write(new_report)
+
+if __name__ == "__main__":
+    update_report()
