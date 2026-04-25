@@ -51,11 +51,33 @@ def create_target(df: pd.DataFrame, horizon: int = HORIZON) -> pd.DataFrame:
     return df
 
 
+def _compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    """Compute Relative Strength Index."""
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = (-delta).clip(lower=0)
+    avg_gain = gain.ewm(alpha=1 / period, min_periods=period).mean()
+    avg_loss = loss.ewm(alpha=1 / period, min_periods=period).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    return 100 - (100 / (1 + rs))
+
+
+def _compute_macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
+    """Compute MACD line, signal line, and histogram."""
+    ema_fast = series.ewm(span=fast, min_periods=fast).mean()
+    ema_slow = series.ewm(span=slow, min_periods=slow).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, min_periods=signal).mean()
+    histogram = macd_line - signal_line
+    return macd_line, signal_line, histogram
+
+
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Build features using only past information.
     Groups: price lags, return lags, rolling statistics,
     high-low range, volume features, deviation from moving averages,
+    technical indicators (RSI, MACD, Bollinger Bands),
     hour-of-day / day-of-week.
     """
     df = df.copy()
@@ -85,6 +107,22 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df["upper_shadow"] = (df["High"] - df[["Open", "Close"]].max(axis=1)) / df["Close"]
     df["lower_shadow"] = (df[["Open", "Close"]].min(axis=1) - df["Low"]) / df["Close"]
+
+    df["rsi_14"] = _compute_rsi(close, period=14)
+    df["rsi_6"] = _compute_rsi(close, period=6)
+
+    macd_line, signal_line, macd_hist = _compute_macd(close)
+    df["macd"] = macd_line / close
+    df["macd_signal"] = signal_line / close
+    df["macd_hist"] = macd_hist / close
+
+    for window in [12, 24]:
+        bb_mean = close.rolling(window).mean()
+        bb_std = close.rolling(window).std()
+        df[f"bb_upper_{window}"] = (bb_mean + 2 * bb_std - close) / close
+        df[f"bb_lower_{window}"] = (close - (bb_mean - 2 * bb_std)) / close
+        df[f"bb_width_{window}"] = (4 * bb_std) / close
+        df[f"bb_position_{window}"] = (close - (bb_mean - 2 * bb_std)) / (4 * bb_std).replace(0, np.nan)
 
     df["hour"] = df["DateTime"].dt.hour
     df["dayofweek"] = df["DateTime"].dt.dayofweek
@@ -117,6 +155,42 @@ def time_split(df: pd.DataFrame, test_frac: float = 0.2):
     return train, test
 
 
+def walk_forward_split(df: pd.DataFrame, n_splits: int = 5, test_size: int = None):
+    """
+    Walk-forward (expanding window) cross-validation splits.
+    Returns list of (train_idx, test_idx) tuples.
+    Each subsequent fold uses a larger training set.
+    """
+    n = len(df)
+    if test_size is None:
+        test_size = n // (n_splits + 1)
+
+    min_train_size = n - n_splits * test_size
+    if min_train_size < test_size:
+        min_train_size = test_size
+
+    splits = []
+    for i in range(n_splits):
+        test_end = n - (n_splits - 1 - i) * test_size
+        test_start = test_end - test_size
+        train_end = test_start
+        if train_end < min_train_size:
+            continue
+        splits.append((list(range(0, train_end)), list(range(test_start, test_end))))
+
+    return splits
+
+
+def prepare_features(df: pd.DataFrame):
+    """
+    Apply feature engineering, drop NaN rows, return cleaned df and feature column names.
+    Does NOT create target — call create_target separately before or after.
+    """
+    feature_cols = get_feature_columns(df)
+    df = df.dropna(subset=feature_cols).reset_index(drop=True)
+    return df, feature_cols
+
+
 def build_dataset(horizon: int = HORIZON, test_frac: float = 0.2):
     """
     End-to-end pipeline: load → clean → features → target → split.
@@ -138,3 +212,17 @@ def build_dataset(horizon: int = HORIZON, test_frac: float = 0.2):
     y_test = test["target"].values
 
     return X_train, y_train, X_test, y_test, feature_cols, df
+
+
+def build_full_df(horizon: int = HORIZON):
+    """
+    Load → clean → features → target → drop NaN.
+    Returns (df, feature_cols) without splitting.
+    """
+    df = load_raw_data()
+    df = clean_data(df)
+    df = add_features(df)
+    df = create_target(df, horizon=horizon)
+    feature_cols = get_feature_columns(df)
+    df = df.dropna(subset=feature_cols).reset_index(drop=True)
+    return df, feature_cols

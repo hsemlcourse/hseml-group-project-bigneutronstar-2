@@ -18,7 +18,9 @@ from src.preprocessing import (
     add_features,
     get_feature_columns,
     time_split,
+    walk_forward_split,
     build_dataset,
+    build_full_df,
     HORIZON,
 )
 
@@ -79,6 +81,17 @@ def test_features_no_leakage():
     assert forbidden.isdisjoint(set(feat_cols)), f"Features contain forbidden: {forbidden & set(feat_cols)}"
 
 
+def test_technical_indicators_present():
+    """RSI, MACD, and Bollinger Band features should be generated."""
+    df = clean_data(load_raw_data())
+    df = add_features(df)
+    feat_cols = get_feature_columns(df)
+    expected = ["rsi_14", "rsi_6", "macd", "macd_signal", "macd_hist",
+                "bb_upper_12", "bb_lower_12", "bb_width_12", "bb_position_12"]
+    for col in expected:
+        assert col in feat_cols, f"Missing feature: {col}"
+
+
 def test_time_split_no_overlap():
     """Train period must end before test period begins."""
     df = clean_data(load_raw_data())
@@ -88,6 +101,19 @@ def test_time_split_no_overlap():
 
     train, test = time_split(df, test_frac=0.2)
     assert train["DateTime"].max() < test["DateTime"].min(), "Train must end before test"
+
+
+def test_walk_forward_splits():
+    """Walk-forward splits should have non-overlapping, ordered folds."""
+    df, feat_cols = build_full_df(horizon=1)
+    splits = walk_forward_split(df, n_splits=3)
+    assert len(splits) >= 2, "Should produce at least 2 folds"
+
+    for train_idx, test_idx in splits:
+        assert max(train_idx) < min(test_idx), "Train must precede test in each fold"
+
+    for i in range(1, len(splits)):
+        assert len(splits[i][0]) > len(splits[i - 1][0]), "Train should grow across folds"
 
 
 def test_build_dataset_shapes():
@@ -105,3 +131,12 @@ def test_no_nan_in_features():
     X_train, _, X_test, _, _, _ = build_dataset()
     assert not np.isnan(X_train).any(), "NaN in X_train"
     assert not np.isnan(X_test).any(), "NaN in X_test"
+
+
+def test_multiple_horizons():
+    """Pipeline should work for different horizons."""
+    for h in [1, 4, 24]:
+        X_train, y_train, X_test, y_test, feat_cols, df = build_dataset(horizon=h)
+        assert X_train.shape[0] > 0
+        assert X_test.shape[0] > 0
+        assert set(np.unique(y_train)).issubset({0, 1})
