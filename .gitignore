@@ -101,3 +101,12 @@ ehthumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+cp1-1.zip
+.venv
+update_report.py
+# Generator scripts
+create_notebook.py
+update_report.py
+pipeline_output.txt
+__pycache__

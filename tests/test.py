@@ -21,7 +21,6 @@ from src.preprocessing import (
     walk_forward_split,
     build_dataset,
     build_full_df,
-    HORIZON,
 )
 
 

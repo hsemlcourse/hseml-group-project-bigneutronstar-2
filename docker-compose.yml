@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  gold-ml-pipeline:
+    build: .
+    container_name: ml-pipeline
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python run_pipeline.py
+
+  jupyter:
+    build: .
+    container_name: ml-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root
