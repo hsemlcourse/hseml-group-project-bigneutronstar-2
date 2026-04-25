@@ -137,6 +137,10 @@ pytest tests/test.py -v
 | 2 | **Random Forest** | Ансамбль деревьев, n_estimators=300, max_depth=8 |
 | 3 | **Gradient Boosting** | Бустинг, n_estimators=300, lr=0.05, max_depth=5 |
 
+После запуска `run_pipeline.py` результаты сохраняются в `models/`:
+- `metrics.json` - все метрики по всем горизонтам, walk-forward CV, тюнинг
+- `best_model.pkl` - лучшая обученная модель (pickle)
+
 
 ## Результаты
 

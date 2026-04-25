@@ -10,7 +10,9 @@ Usage:
 """
 
 import sys
+import json
 import numpy as np
+import joblib
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -28,7 +30,7 @@ from src.modeling import (
 def run_holdout_experiment(horizon, test_frac=0.2):
     """Run standard holdout evaluation for a given horizon."""
     print(f"\n{'='*60}")
-    print(f"HOLDOUT EXPERIMENT — horizon={horizon}")
+    print(f"HOLDOUT EXPERIMENT - horizon={horizon}")
     print(f"{'='*60}")
 
     X_train, y_train, X_test, y_test, feature_cols, df = build_dataset(
@@ -37,7 +39,7 @@ def run_holdout_experiment(horizon, test_frac=0.2):
 
     print(f"  Samples: {len(df)} total, {len(X_train)} train, {len(X_test)} test")
     print(f"  Features: {len(feature_cols)}")
-    print(f"  Target balance — train: {y_train.mean():.3f}, test: {y_test.mean():.3f}")
+    print(f"  Target balance - train: {y_train.mean():.3f}, test: {y_test.mean():.3f}")
 
     results = train_and_evaluate(X_train, y_train, X_test, y_test, feature_cols)
     print_summary(results)
@@ -48,7 +50,7 @@ def run_holdout_experiment(horizon, test_frac=0.2):
 def run_walkforward_experiment(horizon, n_splits=5):
     """Run walk-forward CV evaluation for a given horizon."""
     print(f"\n{'='*60}")
-    print(f"WALK-FORWARD CV — horizon={horizon}, {n_splits} folds")
+    print(f"WALK-FORWARD CV - horizon={horizon}, {n_splits} folds")
     print(f"{'='*60}")
 
     df, feature_cols = build_full_df(horizon=horizon)
@@ -113,7 +115,7 @@ def main():
     best_params = run_tuning(df_best, feature_cols_best, splits_best)
 
     print(f"\n{'='*60}")
-    print(f"TUNED MODELS — holdout evaluation (horizon={best_horizon})")
+    print(f"TUNED MODELS - holdout evaluation (horizon={best_horizon})")
     print(f"{'='*60}")
     X_train, y_train, X_test, y_test, fc, _ = build_dataset(
         horizon=best_horizon, test_frac=0.2
@@ -163,7 +165,7 @@ def main():
     get_feature_importance(tuned_results, fc)
 
     print(f"\n{'='*60}")
-    print("FINAL SUMMARY — ALL HORIZONS (holdout)")
+    print("FINAL SUMMARY - ALL HORIZONS (holdout)")
     print(f"{'='*60}")
     for h in horizons:
         print(f"\n  Horizon={h}:")
@@ -178,7 +180,61 @@ def main():
     for name, r in tuned_results.items():
         print(f"  {name:<30} {r['accuracy']:>10.4f} {r['f1']:>10.4f} {r['roc_auc']:>10.4f}")
 
+    save_results(all_holdout_results, all_wf_results, best_params, tuned_results,
+                 fc, best_horizon)
+
     print(f"\nPipeline completed successfully.")
+
+
+def save_results(holdout_results, wf_results, best_params, tuned_results,
+                 feature_cols, best_horizon):
+    """Save metrics to JSON and best model to pickle."""
+    output_dir = PROJECT_ROOT / "models"
+    output_dir.mkdir(exist_ok=True)
+
+    summary = {
+        "best_horizon": best_horizon,
+        "feature_cols": feature_cols,
+        "holdout": {},
+        "walk_forward": {},
+        "tuning": {},
+        "tuned_holdout": {},
+    }
+
+    for h, results in holdout_results.items():
+        summary["holdout"][str(h)] = {
+            name: {"accuracy": r["accuracy"], "f1": r["f1"], "roc_auc": r["roc_auc"]}
+            for name, r in results.items()
+        }
+
+    for h, results in wf_results.items():
+        summary["walk_forward"][str(h)] = {
+            name: r["mean"]
+            for name, r in results.items()
+        }
+
+    for name, info in best_params.items():
+        summary["tuning"][name] = {
+            "best_score": info["best_score"],
+            "best_params": {k: v for k, v in info["best_params"].items()
+                          if k != "random_state"},
+        }
+
+    for name, r in tuned_results.items():
+        summary["tuned_holdout"][name] = {
+            "accuracy": r["accuracy"], "f1": r["f1"], "roc_auc": r["roc_auc"]
+        }
+
+    metrics_path = output_dir / "metrics.json"
+    with open(metrics_path, "w") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False)
+    print(f"\nMetrics saved to {metrics_path}")
+
+    best_model_name = max(tuned_results, key=lambda k: tuned_results[k]["roc_auc"])
+    best_model = tuned_results[best_model_name]["model"]
+    model_path = output_dir / "best_model.pkl"
+    joblib.dump(best_model, model_path)
+    print(f"Best model ({best_model_name}) saved to {model_path}")
 
 
 if __name__ == "__main__":

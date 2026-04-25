@@ -184,7 +184,7 @@ def walk_forward_split(df: pd.DataFrame, n_splits: int = 5, test_size: int = Non
 def prepare_features(df: pd.DataFrame):
     """
     Apply feature engineering, drop NaN rows, return cleaned df and feature column names.
-    Does NOT create target — call create_target separately before or after.
+    Does NOT create target - call create_target separately before or after.
     """
     feature_cols = get_feature_columns(df)
     df = df.dropna(subset=feature_cols).reset_index(drop=True)
