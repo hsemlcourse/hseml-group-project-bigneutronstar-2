@@ -110,3 +110,9 @@ create_notebook.py
 update_report.py
 pipeline_output.txt
 __pycache__
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+hseml-group-project-bigneutronstar-2.zip
