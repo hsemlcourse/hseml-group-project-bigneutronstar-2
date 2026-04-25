@@ -20,7 +20,6 @@ def update_report():
             best_roc = vals["roc_auc"]
             best_model_name = m
             
-    # Load backtest metrics for the best test model
     bt = metrics["tuned_holdout"][best_model_name].get("backtest", {})
     hit_rate = bt.get("hit_rate", 0)
     trades = bt.get("n_trades", 0)

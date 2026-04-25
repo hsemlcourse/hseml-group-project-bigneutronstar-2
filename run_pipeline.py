@@ -182,7 +182,6 @@ def main():
 
         metrics = _evaluate(y_test, y_pred, y_proba)
         
-        # Run Backtest
         bt = run_simple_backtest(y_proba, future_rets)
         
         tuned_results[f"{model_key}_tuned"] = {
@@ -249,7 +248,6 @@ def save_results(holdout_results, wf_results, best_params, tuned_results,
         json.dump(summary, f, indent=2, ensure_ascii=False)
     print(f"\nMetrics saved to {metrics_path}")
 
-    # Use max by ROC-AUC or F1 macro... we use ROC-AUC.
     best_model_name = max(tuned_results, key=lambda k: tuned_results[k]["roc_auc"])
     best_model = tuned_results[best_model_name]["model"]
     model_path = output_dir / "best_model.pkl"
