@@ -116,3 +116,5 @@ __pycache__/
 .ruff_cache/
 .DS_Store
 hseml-group-project-bigneutronstar-2.zip
+
+download_external_data.py
