@@ -1,4 +1,4 @@
-name: CI — Autotests
+name: CI - Autotests
 
 on:
   push:

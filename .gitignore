@@ -30,7 +30,7 @@ env/
 */.ipynb_checkpoints/*
 
 # =============================================================================
-# Data — large files are NOT committed
+# Data - large files are NOT committed
 # =============================================================================
 data/raw/*.csv
 data/raw/*.json
@@ -52,7 +52,7 @@ data/processed/*.npz
 !data/processed/.gitkeep
 
 # =============================================================================
-# Models — large binary files
+# Models - large binary files
 # =============================================================================
 models/*.pkl
 models/*.joblib
@@ -63,14 +63,14 @@ models/*.onnx
 !models/.gitkeep
 
 # =============================================================================
-# Reports — figures are regenerated, but keep CSV
+# Reports - figures are regenerated, but keep CSV
 # =============================================================================
 reports/figures/*.png
 reports/figures/*.jpg
 reports/figures/*.svg
 reports/figures/*.pdf
 !reports/figures/.gitkeep
-# ablation_table.csv must be committed — do NOT add it here
+# ablation_table.csv must be committed - do NOT add it here
 
 # =============================================================================
 # OS
@@ -118,3 +118,5 @@ __pycache__/
 hseml-group-project-bigneutronstar-2.zip
 
 download_external_data.py
+print_eda_plots.py
+fix_eda.py

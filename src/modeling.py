@@ -1,12 +1,11 @@
-"""
-Modeling module for gold futures price direction prediction.
-Trains baseline (Logistic Regression), Random Forest, and Gradient Boosting
-classifiers. Evaluates with accuracy, F1, ROC-AUC. Supports walk-forward
-cross-validation and hyperparameter tuning.
-"""
+# Обучение и оценка моделей для золота.
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import (
+    RandomForestClassifier,
+    GradientBoostingClassifier,
+    ExtraTreesClassifier
+)
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
     accuracy_score,
@@ -16,14 +15,18 @@ from sklearn.metrics import (
     classification_report,
 )
 from catboost import CatBoostClassifier
+
 RANDOM_SEED = 42
+
+
 def get_models(tuned: bool = False):
-    """Return dict of {name: model} for all models to evaluate."""
+    """Список моделей для оценки."""
     if tuned:
         return get_tuned_models()
     return {
         "LogisticRegression": LogisticRegression(
-            max_iter=1000, random_state=RANDOM_SEED, solver="lbfgs", multi_class="multinomial"
+            max_iter=1000, random_state=RANDOM_SEED, solver="lbfgs",
+            multi_class="multinomial"
         ),
         "RandomForest": RandomForestClassifier(
             n_estimators=300,
@@ -40,19 +43,30 @@ def get_models(tuned: bool = False):
             random_state=RANDOM_SEED,
         ),
         "CatBoost": CatBoostClassifier(
-            iterations=150,
-            depth=4,
+            iterations=300,
+            depth=5,
             learning_rate=0.05,
+            l2_leaf_reg=3,
             random_seed=RANDOM_SEED,
             verbose=0,
             thread_count=-1,
         ),
+        "ExtraTrees": ExtraTreesClassifier(
+            n_estimators=300,
+            max_depth=8,
+            min_samples_leaf=20,
+            random_state=RANDOM_SEED,
+            n_jobs=-1,
+        ),
     }
+
+
 def get_tuned_models():
-    """Return models with tuned hyperparameters (found via walk-forward CV)."""
+    """Тюненые модели."""
     return {
         "LogisticRegression_tuned": LogisticRegression(
-            max_iter=1000, C=0.1, random_state=RANDOM_SEED, solver="lbfgs"
+            max_iter=1000, C=0.1, random_state=RANDOM_SEED, solver="lbfgs",
+            multi_class="multinomial"
         ),
         "RandomForest_tuned": RandomForestClassifier(
             n_estimators=500,
@@ -63,14 +77,33 @@ def get_tuned_models():
             n_jobs=-1,
         ),
         "GradientBoosting_tuned": GradientBoostingClassifier(
-            n_estimators=500,
-            max_depth=4,
+            n_estimators=300,
+            max_depth=3,
             learning_rate=0.03,
             min_samples_leaf=30,
             subsample=0.8,
             random_state=RANDOM_SEED,
         ),
+        "CatBoost_tuned": CatBoostClassifier(
+            iterations=500,
+            depth=5,
+            learning_rate=0.03,
+            l2_leaf_reg=5,
+            random_seed=RANDOM_SEED,
+            verbose=0,
+            thread_count=-1,
+        ),
+        "ExtraTrees_tuned": ExtraTreesClassifier(
+            n_estimators=500,
+            max_depth=6,
+            min_samples_leaf=30,
+            max_features="sqrt",
+            random_state=RANDOM_SEED,
+            n_jobs=-1,
+        ),
     }
+
+
 def _evaluate(y_true, y_pred, y_proba):
     """Compute standard classification metrics for multiclass."""
     try:
@@ -85,11 +118,13 @@ def _evaluate(y_true, y_pred, y_proba):
         "confusion_matrix": confusion_matrix(y_true, y_pred),
         "report": classification_report(y_true, y_pred, digits=4, zero_division=0),
     }
+
+
 def run_simple_backtest(y_proba, future_returns, p_thresh=0.45):
     """
     Very simple vectorized backtest logic.
-    Goes LONG if probability of UP (class 2) is > p_thresh AND > probability of DOWN.
-    Goes SHORT if probability of DOWN (class 0) is > p_thresh AND > probability of UP.
+    Goes LONG if probability of UP (class 2) > p_thresh AND > probability of DOWN.
+    Goes SHORT if probability of DOWN (class 0) > p_thresh AND > probability of UP.
     """
     p_down = y_proba[:, 0]
     p_up = y_proba[:, 2]
@@ -109,6 +144,8 @@ def run_simple_backtest(y_proba, future_returns, p_thresh=0.45):
         "avg_return_trade": avg_return_trade,
         "cum_return": cum_return,
     }
+
+
 def train_and_evaluate(X_train, y_train, X_test, y_test, feature_names=None,
                        tuned: bool = False, verbose: bool = True):
     """
@@ -118,26 +155,32 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, feature_names=None,
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
+
     models = get_models(tuned=tuned)
     results = {}
+
     for name, model in models.items():
         if verbose:
             print(f"\n{'='*60}")
             print(f"Training: {name}")
             print(f"{'='*60}")
+
         is_linear = "Logistic" in name
         X_tr = X_train_scaled if is_linear else X_train
         X_te = X_test_scaled if is_linear else X_test
+
         model.fit(X_tr, y_train)
         y_pred = model.predict(X_te)
         y_proba = model.predict_proba(X_te)
         metrics = _evaluate(y_test, y_pred, y_proba)
+
         if verbose:
             print(f"Accuracy:   {metrics['accuracy']:.4f}")
             print(f"F1 (macro): {metrics['f1_macro']:.4f}")
             print(f"ROC-AUC:    {metrics['roc_auc']:.4f}")
             print(f"\nConfusion matrix:\n{metrics['confusion_matrix']}")
             print(f"\nClassification report:\n{metrics['report']}")
+
         results[name] = {
             "model": model,
             "scaler": scaler if is_linear else None,
@@ -146,6 +189,8 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, feature_names=None,
             "y_proba": y_proba,
         }
     return results
+
+
 def walk_forward_evaluate(df, feature_cols, splits, model_name="GradientBoosting",
                           tuned: bool = False, verbose: bool = True):
     """
@@ -154,28 +199,34 @@ def walk_forward_evaluate(df, feature_cols, splits, model_name="GradientBoosting
     """
     models_dict = get_models(tuned=tuned)
     fold_metrics = []
+
     for fold_i, (train_idx, test_idx) in enumerate(splits):
         X_tr = df.iloc[train_idx][feature_cols].values
         y_tr = df.iloc[train_idx]["target"].values
         X_te = df.iloc[test_idx][feature_cols].values
         y_te = df.iloc[test_idx]["target"].values
+
         is_linear = "Logistic" in model_name
         if is_linear:
             scaler_fold = StandardScaler()
             X_tr = scaler_fold.fit_transform(X_tr)
             X_te = scaler_fold.transform(X_te)
+
         model = _clone_model(models_dict[model_name])
         model.fit(X_tr, y_tr)
         y_pred = model.predict(X_te)
         y_proba = model.predict_proba(X_te)
+
         metrics = _evaluate(y_te, y_pred, y_proba)
         metrics["fold"] = fold_i
         metrics["train_size"] = len(train_idx)
         metrics["test_size"] = len(test_idx)
         fold_metrics.append(metrics)
+
         if verbose:
             print(f"  Fold {fold_i}: train={len(train_idx)}, test={len(test_idx)}, "
                   f"ROC-AUC={metrics['roc_auc']:.4f}, Acc={metrics['accuracy']:.4f}")
+
     mean_metrics = {
         "accuracy": np.mean([m["accuracy"] for m in fold_metrics]),
         "f1_macro": np.mean([m["f1_macro"] for m in fold_metrics]),
@@ -185,13 +236,17 @@ def walk_forward_evaluate(df, feature_cols, splits, model_name="GradientBoosting
         print(f"  Mean:  ROC-AUC={mean_metrics['roc_auc']:.4f}, "
               f"Acc={mean_metrics['accuracy']:.4f}, F1(macro)={mean_metrics['f1_macro']:.4f}")
     return fold_metrics, mean_metrics
+
+
 def _clone_model(model):
     """Create a fresh copy of a model with the same hyperparameters."""
     from sklearn.base import clone
     return clone(model)
+
+
 def tune_hyperparameters(df, feature_cols, splits, verbose=True):
     """
-    Simple grid search over key hyperparameters using walk-forward CV.
+    Grid search over key hyperparameters using walk-forward CV.
     Returns best params dict per model.
     """
     best_results = {}
@@ -199,43 +254,84 @@ def tune_hyperparameters(df, feature_cols, splits, verbose=True):
         print("\n" + "=" * 60)
         print("HYPERPARAMETER TUNING (walk-forward CV)")
         print("=" * 60)
+
+    # -- Logistic Regression --------------------------------------
     lr_configs = [
-        {"C": c, "solver": "lbfgs", "max_iter": 1000, "random_state": RANDOM_SEED, "multi_class": "multinomial"}
-        for c in [0.1, 1.0]
+        {"C": c, "solver": "lbfgs", "max_iter": 1000,
+         "random_state": RANDOM_SEED, "multi_class": "multinomial"}
+        for c in [0.01, 0.1, 0.5, 1.0, 5.0]
     ]
-    best_lr = _grid_search_model(LogisticRegression, lr_configs, df, feature_cols,
-                                  splits, scale=True, verbose=verbose, name="LogisticRegression")
-    best_results["LogisticRegression"] = best_lr
+    best_results["LogisticRegression"] = _grid_search_model(
+        LogisticRegression, lr_configs, df, feature_cols,
+        splits, scale=True, verbose=verbose, name="LogisticRegression"
+    )
+
+    # -- Random Forest --------------------------------------------
     rf_configs = [
         {"n_estimators": n, "max_depth": d, "min_samples_leaf": m,
-         "random_state": RANDOM_SEED, "n_jobs": -1}
-        for n in [100]
-        for d in [4, 6]
-        for m in [20]
+         "max_features": f, "random_state": RANDOM_SEED, "n_jobs": -1}
+        for n in [200, 400]
+        for d in [4, 6, 8]
+        for m in [20, 40]
+        for f in ["sqrt"]
     ]
-    best_rf = _grid_search_model(RandomForestClassifier, rf_configs, df, feature_cols,
-                                  splits, scale=False, verbose=verbose, name="RandomForest")
-    best_results["RandomForest"] = best_rf
+    best_results["RandomForest"] = _grid_search_model(
+        RandomForestClassifier, rf_configs, df, feature_cols,
+        splits, scale=False, verbose=verbose, name="RandomForest"
+    )
+
+    # -- Gradient Boosting ----------------------------------------
     gb_configs = [
-        {"n_estimators": 100, "max_depth": 3, "learning_rate": 0.05,
-         "min_samples_leaf": 30, "subsample": 0.8, "random_state": RANDOM_SEED},
-        {"n_estimators": 150, "max_depth": 4, "learning_rate": 0.05,
-         "min_samples_leaf": 20, "subsample": 0.8, "random_state": RANDOM_SEED},
+        {"n_estimators": n, "max_depth": d, "learning_rate": lr,
+         "min_samples_leaf": m, "subsample": ss, "random_state": RANDOM_SEED}
+        for n in [100, 200]
+        for d in [3, 4]
+        for lr in [0.05, 0.1]
+        for m in [20, 30]
+        for ss in [0.8]
     ]
-    best_gb = _grid_search_model(GradientBoostingClassifier, gb_configs, df, feature_cols,
-                                  splits, scale=False, verbose=verbose, name="GradientBoosting")
-    best_results["GradientBoosting"] = best_gb
+    best_results["GradientBoosting"] = _grid_search_model(
+        GradientBoostingClassifier, gb_configs, df, feature_cols,
+        splits, scale=False, verbose=verbose, name="GradientBoosting"
+    )
+
+    # -- CatBoost (optimized grid) --------------------------------
     cb_configs = [
-        {"iterations": 150, "depth": 4, "learning_rate": 0.05, "random_seed": RANDOM_SEED, "verbose": 0, "thread_count": -1},
+        {"iterations": itr, "depth": dep, "learning_rate": lr,
+         "l2_leaf_reg": 3, "random_seed": RANDOM_SEED, "verbose": 0,
+         "thread_count": -1}
+        for itr in [300, 500]
+        for dep in [4, 6]
+        for lr in [0.03, 0.05, 0.1]
     ]
-    best_cb = _grid_search_model(CatBoostClassifier, cb_configs, df, feature_cols, splits, scale=False, verbose=verbose, name="CatBoost")
-    best_results["CatBoost"] = best_cb
+    best_results["CatBoost"] = _grid_search_model(
+        CatBoostClassifier, cb_configs, df, feature_cols,
+        splits, scale=False, verbose=verbose, name="CatBoost"
+    )
+
+    # -- ExtraTrees ----------------------------------------------
+    et_configs = [
+        {"n_estimators": n, "max_depth": d, "min_samples_leaf": m,
+         "max_features": f, "random_state": RANDOM_SEED, "n_jobs": -1}
+        for n in [200, 400]
+        for d in [4, 6, 8]
+        for m in [20, 40]
+        for f in ["sqrt"]
+    ]
+    best_results["ExtraTrees"] = _grid_search_model(
+        ExtraTreesClassifier, et_configs, df, feature_cols,
+        splits, scale=False, verbose=verbose, name="ExtraTrees"
+    )
+
     return best_results
+
+
 def _grid_search_model(model_class, configs, df, feature_cols, splits,
                         scale=False, verbose=True, name=""):
     """Run walk-forward CV for each config, return best config and score."""
     best_score = -1
     best_config = None
+
     for config in configs:
         scores = []
         for train_idx, test_idx in splits:
@@ -243,10 +339,12 @@ def _grid_search_model(model_class, configs, df, feature_cols, splits,
             y_tr = df.iloc[train_idx]["target"].values
             X_te = df.iloc[test_idx][feature_cols].values
             y_te = df.iloc[test_idx]["target"].values
+
             if scale:
                 sc = StandardScaler()
                 X_tr = sc.fit_transform(X_tr)
                 X_te = sc.transform(X_te)
+
             model = model_class(**config)
             model.fit(X_tr, y_tr)
             y_proba = model.predict_proba(X_te)
@@ -254,13 +352,17 @@ def _grid_search_model(model_class, configs, df, feature_cols, splits,
                 scores.append(roc_auc_score(y_te, y_proba, multi_class="ovr", average="macro"))
             except ValueError:
                 scores.append(0.5)
+
         mean_score = np.mean(scores)
         if mean_score > best_score:
             best_score = mean_score
             best_config = config
+
     if verbose:
         print(f"\n  {name}: best ROC-AUC={best_score:.4f}, params={best_config}")
     return {"best_score": best_score, "best_params": best_config}
+
+
 def print_summary(results: dict):
     """Print comparison table."""
     print(f"\n{'='*60}")
@@ -271,6 +373,8 @@ def print_summary(results: dict):
     for name, r in results.items():
         print(f"{name:<30} {r['accuracy']:>10.4f} {r['f1_macro']:>10.4f} {r['roc_auc']:>10.4f}")
     print()
+
+
 def get_feature_importance(results: dict, feature_names: list) -> dict:
     """
     Extract feature importances from tree-based models.
