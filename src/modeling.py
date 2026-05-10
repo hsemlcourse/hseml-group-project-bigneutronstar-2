@@ -4,7 +4,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import (
     RandomForestClassifier,
     GradientBoostingClassifier,
-    ExtraTreesClassifier
+    ExtraTreesClassifier,
+    VotingClassifier,
+    StackingClassifier,
 )
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
@@ -102,6 +104,22 @@ def get_tuned_models():
             n_jobs=-1,
         ),
     }
+
+
+def get_ensemble(best_results: dict):
+    """Создает Soft Voting Ensemble из лучших моделей."""
+    estimators = []
+    if "LogisticRegression" in best_results:
+        p = best_results["LogisticRegression"]["best_params"]
+        estimators.append(("lr", LogisticRegression(**p)))
+    if "ExtraTrees" in best_results:
+        p = best_results["ExtraTrees"]["best_params"]
+        estimators.append(("et", ExtraTreesClassifier(**p)))
+    if "CatBoost" in best_results:
+        p = best_results["CatBoost"]["best_params"]
+        estimators.append(("cb", CatBoostClassifier(**p)))
+    if len(estimators) < 2: return None
+    return VotingClassifier(estimators=estimators, voting="soft")
 
 
 def _evaluate(y_true, y_pred, y_proba):
@@ -391,3 +409,96 @@ def get_feature_importance(results: dict, feature_names: list) -> dict:
             for feat, val in pairs[:10]:
                 print(f"  {feat:<30} {val:.4f}")
     return importances
+
+
+# ---------------------------------------------------------------------------
+# CP3: Stacking Ensemble
+# ---------------------------------------------------------------------------
+
+def get_stacking_model(seed: int = RANDOM_SEED) -> StackingClassifier:
+    """
+    Stacking ensemble:
+      Base:  RF, GradientBoosting, CatBoost, ExtraTrees
+      Meta:  LogisticRegression (trained on out-of-fold predictions)
+    n_jobs=1 on base models to avoid MacOS multiprocessing fork issues
+    inside the stacking CV loop.
+    """
+    estimators = [
+        (
+            "rf",
+            RandomForestClassifier(
+                n_estimators=400, max_depth=6, min_samples_leaf=30,
+                max_features="sqrt", random_state=seed, n_jobs=1,
+            ),
+        ),
+        (
+            "gb",
+            GradientBoostingClassifier(
+                n_estimators=200, max_depth=3, learning_rate=0.05,
+                min_samples_leaf=30, subsample=0.8, random_state=seed,
+            ),
+        ),
+        (
+            "cb",
+            CatBoostClassifier(
+                iterations=500, depth=5, learning_rate=0.03,
+                l2_leaf_reg=5, random_seed=seed, verbose=0, thread_count=1,
+            ),
+        ),
+        (
+            "et",
+            ExtraTreesClassifier(
+                n_estimators=400, max_depth=6, min_samples_leaf=30,
+                max_features="sqrt", random_state=seed, n_jobs=1,
+            ),
+        ),
+    ]
+    meta = LogisticRegression(
+        C=0.5, max_iter=1000, random_state=seed,
+        solver="lbfgs", multi_class="multinomial",
+    )
+    return StackingClassifier(
+        estimators=estimators,
+        final_estimator=meta,
+        cv=3,
+        passthrough=False,
+        n_jobs=1,  # avoid fork issues on MacOS
+    )
+
+
+# ---------------------------------------------------------------------------
+# CP3: Threshold optimisation (on val set, NOT test)
+# ---------------------------------------------------------------------------
+
+def optimize_threshold(
+    y_proba: np.ndarray,
+    future_returns,
+    min_trades: int = 25,
+    p_min: float = 0.35,
+    p_max: float = 0.72,
+    step: float = 0.02,
+):
+    """
+    Grid-search the confidence threshold that maximises hit_rate on a
+    held-out validation set.  Only thresholds that produce at least
+    `min_trades` trades are considered.
+
+    Returns (best_threshold, best_hit_rate, all_results_list).
+    """
+    thresholds = np.arange(p_min, p_max, step)
+    best_thresh = 0.45
+    best_hr = 0.0
+    results = []
+    for t in thresholds:
+        t_f = float(t)
+        bt = run_simple_backtest(y_proba, future_returns, p_thresh=t_f)
+        results.append({
+            "threshold": round(t_f, 3),
+            "hit_rate": bt["hit_rate"],
+            "n_trades": bt["n_trades"],
+            "avg_return": bt["avg_return_trade"],
+        })
+        if bt["n_trades"] >= min_trades and bt["hit_rate"] > best_hr:
+            best_hr = bt["hit_rate"]
+            best_thresh = t_f
+    return best_thresh, best_hr, results

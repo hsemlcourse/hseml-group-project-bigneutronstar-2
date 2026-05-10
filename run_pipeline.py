@@ -11,12 +11,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.preprocessing import (
-    build_dataset, build_full_df, walk_forward_split
+    build_dataset, build_full_df, walk_forward_split,
+    build_dataset_3way
 )
 from src.modeling import (
     train_and_evaluate, print_summary, get_feature_importance,
     walk_forward_evaluate, tune_hyperparameters, run_simple_backtest,
-    get_models, _evaluate, RANDOM_SEED
+    get_models, _evaluate, RANDOM_SEED, get_ensemble,
+    get_stacking_model, optimize_threshold
 )
 
 
@@ -297,21 +299,45 @@ def main():
     # -- Feature importance ----------------------------------------
     print(f"\n{'='*65}")
     print("FEATURE IMPORTANCE (tree models, Variant B)")
-    print(f"{'='*65}")
     get_feature_importance(tuned_b if not args.fast else ho_b, fc_tuned)
+
+    # -- Ensemble -------------------------------------------------
+    print(f"\n{'='*65}")
+    print("ENSEMBLE (SOFT VOTING) on Variant B")
+    print(f"{'='*65}")
+    
+    ensemble_model = get_ensemble(best_params)
+    if ensemble_model and not args.fast:
+        # Evaluate ensemble on the same holdout
+        X_tr, y_tr, X_te, y_te, _, _, fut_rets = build_dataset(HORIZON, THRESHOLD, TEST_FRAC, True)
+        ensemble_model.fit(X_tr, y_tr)
+        y_pred = ensemble_model.predict(X_te)
+        y_proba = ensemble_model.predict_proba(X_te)
+        e_metrics = _evaluate(y_te, y_pred, y_proba)
+        e_bt = run_simple_backtest(y_proba, fut_rets)
+        e_metrics["backtest"] = e_bt
+        
+        tuned_b["Ensemble_Voting"] = {
+            "model": ensemble_model,
+            **e_metrics,
+            "y_pred": y_pred,
+            "y_proba": y_proba
+        }
+        print(f"  Ensemble ROC-AUC: {e_metrics['roc_auc']:.4f}")
+        print(f"  Ensemble HitRate: {e_bt['hit_rate']:.2f}")
+    else:
+        print("  Ensemble skipped (requires tuning).")
 
     # -- Final model selection ------------------------------------─
     print(f"\n{'='*65}")
     print("FINAL MODEL SELECTION")
     print(f"{'='*65}")
 
-    # Pick best by ROC-AUC from tuned Variant B results
     all_tuned = tuned_b if not args.fast else ho_b
     best_model_name = max(all_tuned, key=lambda k: all_tuned[k]["roc_auc"])
     best_model = all_tuned[best_model_name]["model"]
     best_metrics = all_tuned[best_model_name]
 
-    # Compare to best from Variant A
     best_a_name = max(tuned_a, key=lambda k: tuned_a[k]["roc_auc"])
     best_a_metrics = tuned_a[best_a_name]
 
@@ -326,45 +352,132 @@ def main():
 
     ext_improved = best_metrics["roc_auc"] > best_a_metrics["roc_auc"]
     print(f"\n  External factors improved ROC-AUC: {'YES ✓' if ext_improved else 'NO ✗'}")
-    print(f"\n  → RECOMMENDED FINAL MODEL: {best_model_name} (Variant {'B' if ext_improved else 'A'})")
+    print(f"\n  → RECOMMENDED FINAL MODEL: {best_model_name} "
+          f"(Variant {'B' if ext_improved else 'A'})")
     print(f"    Selection criterion: highest walk-forward + holdout ROC-AUC")
 
-    # -- Save ------------------------------------------------------
     summary = {
-        "config": {
-            "horizon": HORIZON,
-            "threshold": THRESHOLD,
-            "seed": RANDOM_SEED,
-        },
-        "variant_a_holdout": {
-            name: _safe_metrics(r) for name, r in ho_a.items()
-        },
-        "variant_b_holdout": {
-            name: _safe_metrics(r) for name, r in ho_b.items()
-        },
-        "variant_a_walkforward": {
-            name: r["mean"] for name, r in wf_a.items()
-        },
-        "variant_b_walkforward": {
-            name: r["mean"] for name, r in wf_b.items()
-        },
+        "config": {"horizon": HORIZON, "threshold": THRESHOLD, "seed": RANDOM_SEED},
+        "variant_a_holdout":   {n: _safe_metrics(r) for n, r in ho_a.items()},
+        "variant_b_holdout":   {n: _safe_metrics(r) for n, r in ho_b.items()},
+        "variant_a_walkforward": {n: r["mean"] for n, r in wf_a.items()},
+        "variant_b_walkforward": {n: r["mean"] for n, r in wf_b.items()},
         "tuning": {
-            name: {"best_score": info["best_score"],
-                   "best_params": {k: v for k, v in info["best_params"].items()
-                                   if k not in ("random_state", "random_seed")}}
-            for name, info in best_params.items()
+            n: {"best_score": info["best_score"],
+                "best_params": {k: v for k, v in info["best_params"].items()
+                                if k not in ("random_state", "random_seed")}}
+            for n, info in best_params.items()
         },
-        "tuned_a_holdout": {name: _safe_metrics(r) for name, r in tuned_a.items()},
-        "tuned_b_holdout": {name: _safe_metrics(r) for name, r in tuned_b.items()},
+        "tuned_a_holdout":  {n: _safe_metrics(r) for n, r in tuned_a.items()},
+        "tuned_b_holdout":  {n: _safe_metrics(r) for n, r in tuned_b.items()},
         "final_model": best_model_name,
         "external_factors_improved": ext_improved,
         "feature_cols_a": list(fc_a),
         "feature_cols_b": list(fc_b),
     }
-
     save_results(summary, best_model, best_model_name)
-    print("\nPipeline completed successfully.")
+    print("\nCP2 pipeline completed successfully.")
+
+    # -- CP3: Stacking + Threshold Optimisation -------------------─
+    run_cp3_experiment(horizon=HORIZON, threshold=THRESHOLD)
+
+
+# ----------------------------------------------------------------------------─
+# CP3: Stacking Ensemble + Threshold Optimisation
+# ----------------------------------------------------------------------------─
+
+def run_cp3_experiment(horizon=HORIZON, threshold=THRESHOLD):
+    """
+    CP3 experiment:
+      1. Build enriched dataset (Variant B) with 3-way split.
+      2. Train Stacking Ensemble on train set.
+      3. Optimise confidence threshold on val set (no leakage).
+      4. Evaluate on test set with the optimised threshold.
+    """
+    print("\n\n" + "█" * 65)
+    print("CP3: STACKING ENSEMBLE + THRESHOLD OPTIMISATION")
+    print("█" * 65)
+
+    (
+        X_train, y_train,
+        X_val,   y_val,
+        X_test,  y_test,
+        feature_cols, _df,
+        fut_rets_val, fut_rets_test,
+    ) = build_dataset_3way(
+        horizon=horizon, threshold=threshold,
+        val_frac=0.15, test_frac=0.20, use_external=True
+    )
+    print(f"  Train: {len(X_train)}  Val: {len(X_val)}  Test: {len(X_test)}")
+    print(f"  Features: {len(feature_cols)}")
+
+    # ---- Baseline: best CP2 model (LogReg tuned) on same test split ----
+    from sklearn.linear_model import LogisticRegression as LR
+    from sklearn.preprocessing import StandardScaler as SS
+    scaler = SS()
+    X_tr_s = scaler.fit_transform(np.vstack([X_train, X_val]))
+    X_te_s = scaler.transform(X_test)
+    baseline = LR(
+        C=0.1, max_iter=1000, random_state=RANDOM_SEED,
+        solver="lbfgs", multi_class="multinomial"
+    )
+    baseline.fit(X_tr_s, np.concatenate([y_train, y_val]))
+    bl_proba = baseline.predict_proba(X_te_s)
+    bl_bt = run_simple_backtest(bl_proba, fut_rets_test, p_thresh=0.45)
+    print(f"\n  [Baseline LogReg thresh=0.45]  "
+          f"HitRate={bl_bt['hit_rate']:.2f}  "
+          f"Trades={bl_bt['n_trades']}  "
+          f"AvgRet={bl_bt['avg_return_trade']:.5f}")
+
+    # ---- Train Stacking Ensemble ----
+    print("\n  Training Stacking Ensemble (RF + GB + CatBoost + ExtraTrees -> LogReg)...")
+    stack = get_stacking_model(seed=RANDOM_SEED)
+    stack.fit(X_train, y_train)
+
+    # ---- Threshold optimisation on VAL set ----
+    y_proba_val = stack.predict_proba(X_val)
+    best_thresh, best_val_hr, thresh_table = optimize_threshold(
+        y_proba_val, fut_rets_val, min_trades=25
+    )
+    print(f"\n  Threshold optimisation results (val set, ≥ 25 trades):")
+    print(f"  {'Thresh':>8} {'HitRate':>9} {'Trades':>8} {'AvgRet':>10}")
+    print(f"  {'-'*40}")
+    for row in thresh_table:
+        marker = " ← best" if abs(row['threshold'] - best_thresh) < 0.001 else ""
+        if row['n_trades'] >= 25:
+            print(f"  {row['threshold']:>8.2f} {row['hit_rate']:>9.2f} "
+                  f"{row['n_trades']:>8} {row['avg_return']:>10.5f}{marker}")
+    print(f"  --> Chosen threshold: {best_thresh:.2f}  Val HitRate: {best_val_hr:.2f}")
+
+    # ---- Final evaluation on TEST set ----
+    y_proba_test = stack.predict_proba(X_test)
+    y_pred_test  = stack.predict(X_test)
+    metrics = _evaluate(y_test, y_pred_test, y_proba_test)
+
+    bt_default  = run_simple_backtest(y_proba_test, fut_rets_test, p_thresh=0.45)
+    bt_optimized = run_simple_backtest(y_proba_test, fut_rets_test, p_thresh=best_thresh)
+
+    print(f"\n  {'='*60}")
+    print(f"  TEST RESULTS — Stacking Ensemble (Variant B, enriched features)")
+    print(f"  {'='*60}")
+    print(f"  ROC-AUC  : {metrics['roc_auc']:.4f}")
+    print(f"  Accuracy : {metrics['accuracy']:.4f}")
+    print(f"  F1 macro : {metrics['f1_macro']:.4f}")
+    print(f"\n  Backtest default  thresh=0.45 : "
+          f"HitRate={bt_default['hit_rate']:.2f}  "
+          f"Trades={bt_default['n_trades']}  "
+          f"AvgRet={bt_default['avg_return_trade']:.5f}")
+    print(f"  Backtest optimised thresh={best_thresh:.2f} : "
+          f"HitRate={bt_optimized['hit_rate']:.2f}  "
+          f"Trades={bt_optimized['n_trades']}  "
+          f"AvgRet={bt_optimized['avg_return_trade']:.5f}")
+    print(f"  {'='*60}")
+
+    return stack, metrics, bt_optimized, best_thresh, feature_cols
+
+
 
 
 if __name__ == "__main__":
     main()
+

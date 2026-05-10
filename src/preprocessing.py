@@ -141,8 +141,27 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         df[f"bb_width_{window}"] = (4 * bb_std) / close
         df[f"bb_position_{window}"] = (close - (bb_mean - 2 * bb_std)) / (4 * bb_std).replace(0, np.nan)
 
+    df["return_48"] = close.pct_change(48)
+    df["return_72"] = close.pct_change(72)
+
+    df["momentum_accel_4"] = df["return_1"] - df["return_1"].shift(4)
+    df["momentum_accel_12"] = df["return_1"] - df["return_1"].shift(12)
+
     df["hour"] = df["DateTime"].dt.hour
     df["dayofweek"] = df["DateTime"].dt.dayofweek
+
+    # Cyclical encoding (better than raw int for periodic features)
+    df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
+    df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
+    df["dow_sin"] = np.sin(2 * np.pi * df["dayofweek"] / 5)
+    df["dow_cos"] = np.cos(2 * np.pi * df["dayofweek"] / 5)
+
+    # Trading session indicators (UTC)
+    h = df["hour"]
+    df["session_asia"] = ((h >= 22) | (h < 8)).astype(int)
+    df["session_europe"] = ((h >= 8) & (h < 16)).astype(int)
+    df["session_ny"] = ((h >= 13) & (h < 21)).astype(int)
+    df["session_overlap_eu_ny"] = ((h >= 13) & (h < 16)).astype(int)
 
     return df
 
@@ -192,21 +211,30 @@ def add_external_features(df: pd.DataFrame) -> pd.DataFrame:
         df[f"{name}_dev_ma20"]   = (col - ma20) / ma20.replace(0, np.nan)
 
     # Cross-market / inter-market features
-    gold_ret = df["return_1"]   # hourly gold return, already computed in add_features
+    gold_ret = df["return_1"]
 
     if "dxy" in df.columns:
-        df["gold_minus_dxy_ret"]  = gold_ret - df["dxy_ret1d"]
-
+        df["gold_minus_dxy_ret"] = gold_ret - df["dxy_ret1d"]
     if "silver" in df.columns:
         df["gold_minus_silver_ret"] = gold_ret - df["silver_ret1d"]
-        df["gold_silver_ratio"]   = df["Close"] / df["silver"].replace(0, np.nan)
-
+        df["gold_silver_ratio"] = df["Close"] / df["silver"].replace(0, np.nan)
     if "vix" in df.columns:
-        # vix_zscore20 already computed above; expose as explicit cross-market feature
-        df["vix_level"] = df["vix"]   # raw VIX level is itself informative
-
+        df["vix_level"] = df["vix"]
     if "tnx" in df.columns:
         df["tnx_change1d"] = df["tnx"].diff(1)
+
+    # Скользящие корреляции (Rolling Correlations)
+    for name in ["dxy", "silver", "tnx"]:
+        if name in df.columns:
+            for window in [24, 120]:
+                df[f"gold_{name}_corr_{window}"] = (
+                    df["return_1"].rolling(window)
+                    .corr(df[f"{name}_ret1d"])
+                )
+
+    # Индикатор режима волатильности
+    if "atr_14" in df.columns:
+        df["vol_regime"] = df["atr_14"] / df["atr_14"].rolling(120).mean().replace(0, np.nan)
 
     return df
 
@@ -236,6 +264,20 @@ def time_split(df: pd.DataFrame, test_frac: float = 0.2):
     train = df.iloc[:split_idx].copy()
     test = df.iloc[split_idx:].copy()
     return train, test
+
+
+def three_way_split(df: pd.DataFrame, val_frac: float = 0.15, test_frac: float = 0.20):
+    """
+    Chronological train / val / test split with no shuffling.
+    Used for threshold optimization without leaking test labels.
+    """
+    n = len(df)
+    test_start = int(n * (1 - test_frac))
+    val_start = int(n * (1 - test_frac - val_frac))
+    train = df.iloc[:val_start].copy()
+    val = df.iloc[val_start:test_start].copy()
+    test = df.iloc[test_start:].copy()
+    return train, val, test
 
 
 def walk_forward_split(df: pd.DataFrame, n_splits: int = 5, test_size: int = None):
@@ -328,6 +370,48 @@ def build_dataset(horizon: int = HORIZON, threshold: float = 0.001,
     y_test = test["target"].values
     future_rets_test = test["future_return"]
     return X_train, y_train, X_test, y_test, feature_cols, df, future_rets_test
+
+
+def build_dataset_3way(
+    horizon: int = HORIZON, threshold: float = 0.001,
+    val_frac: float = 0.15, test_frac: float = 0.20,
+    use_external: bool = True,
+):
+    """
+    End-to-end pipeline with 3-way chronological split: train / val / test.
+    Val is used for threshold optimisation; test is the final holdout.
+    Returns (X_train, y_train, X_val, y_val, X_test, y_test,
+             feature_cols, df_full, fut_rets_val, fut_rets_test).
+    """
+    df = load_raw_data()
+    df = clean_data(df)
+
+    if use_external:
+        external_df = load_external_factors()
+        df = _merge_external(df, external_df)
+
+    df = add_features(df)
+
+    if use_external:
+        df = add_external_features(df)
+
+    df = create_target(df, horizon=horizon, threshold=threshold)
+    feature_cols = get_feature_columns(df)
+    df = df.dropna(subset=feature_cols).reset_index(drop=True)
+
+    train, val, test = three_way_split(df, val_frac=val_frac, test_frac=test_frac)
+
+    X_train = train[feature_cols].values
+    y_train = train["target"].values
+    X_val = val[feature_cols].values
+    y_val = val["target"].values
+    X_test = test[feature_cols].values
+    y_test = test["target"].values
+    fut_rets_val = val["future_return"].reset_index(drop=True)
+    fut_rets_test = test["future_return"].reset_index(drop=True)
+
+    return (X_train, y_train, X_val, y_val, X_test, y_test,
+            feature_cols, df, fut_rets_val, fut_rets_test)
 
 
 def build_full_df(horizon: int = HORIZON, threshold: float = 0.001,
