@@ -120,3 +120,5 @@ hseml-group-project-bigneutronstar-2.zip
 download_external_data.py
 print_eda_plots.py
 fix_eda.py
+run_cp3_only.py
+run_iter6.py
