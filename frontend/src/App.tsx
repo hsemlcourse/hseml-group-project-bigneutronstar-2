@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
 import './App.css';
 
 interface Prediction {
@@ -34,6 +34,7 @@ function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<ChartData | null>(null);
+  const [animationKey, setAnimationKey] = useState<number>(0);
 
   useEffect(() => {
     fetchData();
@@ -58,6 +59,7 @@ function App() {
   const handleChartClick = (state: any) => {
     if (state && state.activePayload && state.activePayload.length > 0) {
       setSelectedPoint(state.activePayload[0].payload);
+      setAnimationKey(prev => prev + 1);
     }
   };
 
@@ -112,13 +114,16 @@ function App() {
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f8fafc' }}
                 />
                 <Line type="monotone" dataKey="price" stroke="#fbbf24" strokeWidth={2} dot={false} activeDot={{ r: 8, fill: '#fbbf24' }} />
+                {selectedPoint && (
+                  <ReferenceDot x={selectedPoint.time} y={selectedPoint.price} r={6} fill="#22c55e" stroke="#fff" strokeWidth={2} isFront={true} />
+                )}
               </LineChart>
             </ResponsiveContainer>
             <p className="chart-hint">💡 Click on any point on the chart to see what the model predicted at that specific hour.</p>
           </div>
         </section>
 
-        <section className="prediction-section">
+        <section key={animationKey} className="prediction-section fade-in">
           <h2>
             AI Prediction Analysis
             {isHistorical && <span className="historical-badge">Historical Point</span>}

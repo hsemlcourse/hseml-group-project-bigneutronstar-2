@@ -254,3 +254,12 @@ button {
 button:hover {
   background-color: #f59e0b;
 }
+
+.fade-in {
+  animation: fadeInEffect 0.4s ease-in-out;
+}
+
+@keyframes fadeInEffect {
+  0% { opacity: 0.5; transform: scale(0.98); }
+  100% { opacity: 1; transform: scale(1); }
+}
