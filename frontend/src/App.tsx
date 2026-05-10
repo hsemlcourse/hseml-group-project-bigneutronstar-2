@@ -34,6 +34,7 @@ function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<ChartData | null>(null);
+  const [hoveredPoint, setHoveredPoint] = useState<ChartData | null>(null);
   const [animationKey, setAnimationKey] = useState<number>(0);
   const [period, setPeriod] = useState<number>(50);
 
@@ -57,9 +58,15 @@ function App() {
     }
   };
 
-  const handleChartClick = (state: any) => {
+  const handleMouseMove = (state: any) => {
     if (state && state.activePayload && state.activePayload.length > 0) {
-      setSelectedPoint(state.activePayload[0].payload);
+      setHoveredPoint(state.activePayload[0].payload);
+    }
+  };
+
+  const handleChartClick = () => {
+    if (hoveredPoint) {
+      setSelectedPoint(hoveredPoint);
       setAnimationKey(Date.now());
     }
   };
@@ -120,7 +127,7 @@ function App() {
           
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={displayChartData} onClick={handleChartClick} style={{ cursor: 'crosshair' }}>
+              <LineChart data={displayChartData} onClick={handleChartClick} onMouseMove={handleMouseMove} style={{ cursor: 'crosshair' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                 <XAxis 
                   dataKey="time" 
@@ -135,7 +142,7 @@ function App() {
                   labelFormatter={(label) => new Date(label).toLocaleString()}
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f8fafc' }}
                 />
-                <Line type="monotone" dataKey="price" stroke="#fbbf24" strokeWidth={2} dot={false} activeDot={{ r: 8, fill: '#fbbf24' }} isAnimationActive={false} />
+                <Line type="monotone" dataKey="price" stroke="#fbbf24" strokeWidth={2} dot={false} activeDot={{ r: 8, fill: '#fbbf24', cursor: 'pointer', onClick: handleChartClick }} isAnimationActive={false} />
                 <Line type="monotone" dataKey="selectedPrice" stroke="none" dot={{ r: 8, fill: '#22c55e', stroke: '#fff', strokeWidth: 3 }} isAnimationActive={false} activeDot={false} />
               </LineChart>
             </ResponsiveContainer>
