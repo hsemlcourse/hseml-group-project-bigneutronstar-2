@@ -26,3 +26,7 @@ flake8>=6.0.0
 
 # Utilities
 python-dotenv>=1.0.0
+fastapi
+uvicorn
+streamlit
+pydantic
