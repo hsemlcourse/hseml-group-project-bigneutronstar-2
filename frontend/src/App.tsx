@@ -246,19 +246,19 @@ function App() {
           
           {/* Key forces React to destroy and recreate these elements, guaranteeing the animation runs */}
           <div className="metrics-grid" key={`grid-${animationKey}`}>
-            <div className="metric-card spin-card" style={{ borderTop: `4px solid ${signalColor}` }}>
+            <div className="metric-card update-anim" style={{ borderTop: `4px solid ${signalColor}` }}>
               <h3>Trade Signal</h3>
               <div className="metric-value" style={{ color: signalColor }}>{prediction.trade_signal}</div>
               <p className="metric-desc">Based on {prediction.threshold * 100}% threshold logic</p>
             </div>
             
-            <div className="metric-card spin-card" style={{ animationDelay: '0.1s' }}>
+            <div className="metric-card update-anim" style={{ animationDelay: '0.05s' }}>
               <h3>Model Confidence</h3>
               <div className="metric-value">{(prediction.confidence * 100).toFixed(1)}%</div>
               <p className="metric-desc">Certainty of the top predicted class</p>
             </div>
             
-            <div className="metric-card spin-card" style={{ animationDelay: '0.2s' }}>
+            <div className="metric-card update-anim" style={{ animationDelay: '0.1s' }}>
               <h3>Top Probability</h3>
               <div className="metric-value">
                 {prediction.prediction_class === 0 ? "Down" : prediction.prediction_class === 2 ? "Up" : "Flat"}
@@ -268,15 +268,15 @@ function App() {
           </div>
 
           <div className="mini-cards-row" key={`mini-${animationKey}`}>
-            <div className="mini-card spin-card" style={{ animationDelay: '0.3s', borderTop: '2px solid var(--down-color)' }}>
+            <div className="mini-card update-anim" style={{ animationDelay: '0.15s', borderTop: '2px solid var(--down-color)' }}>
               <h4>Down</h4>
               <div className="mini-value">{(prediction.probabilities.Down * 100).toFixed(1)}%</div>
             </div>
-            <div className="mini-card spin-card" style={{ animationDelay: '0.4s', borderTop: '2px solid var(--flat-color)' }}>
+            <div className="mini-card update-anim" style={{ animationDelay: '0.2s', borderTop: '2px solid var(--flat-color)' }}>
               <h4>Flat</h4>
               <div className="mini-value">{(prediction.probabilities.Flat * 100).toFixed(1)}%</div>
             </div>
-            <div className="mini-card spin-card" style={{ animationDelay: '0.5s', borderTop: '2px solid var(--up-color)' }}>
+            <div className="mini-card update-anim" style={{ animationDelay: '0.25s', borderTop: '2px solid var(--up-color)' }}>
               <h4>Up</h4>
               <div className="mini-value">{(prediction.probabilities.Up * 100).toFixed(1)}%</div>
             </div>

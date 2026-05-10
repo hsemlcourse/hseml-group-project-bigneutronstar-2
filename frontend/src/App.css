@@ -310,14 +310,14 @@ button:hover {
   animation: fadeInEffect 0.4s ease-in-out;
 }
 
-.spin-card {
-  animation: spinEffect 2s cubic-bezier(0.25, 1, 0.5, 1);
-  transform-style: preserve-3d;
+.update-anim {
+  animation: popUpdate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes spinEffect {
-  0% { transform: perspective(1000px) rotateY(0deg); }
-  100% { transform: perspective(1000px) rotateY(1080deg); }
+@keyframes popUpdate {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 @keyframes fadeInEffect {
