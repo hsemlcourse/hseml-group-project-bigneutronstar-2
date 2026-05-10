@@ -181,7 +181,7 @@ class 2 (Up):   48.6%  ← доминирует Up
 
 **Новые компоненты (`src/modeling.py`):**
 - `get_stacking_model()` - Stacking Ensemble: RF + GradientBoosting + CatBoost + ExtraTrees → LogisticRegression (мета-learner, cv=3 out-of-fold)
-- `optimize_threshold()` - перебор порогов [0.35–0.72] на val-сплите, выбор по max hit_rate при ≥25 сделках
+- `optimize_threshold()` - перебор порогов [0.35-0.72] на val-сплите, выбор по max hit_rate при ≥25 сделках
 
 **Новый тип сплита (`src/preprocessing.py`):**
 - `three_way_split()` - Train 65% / Val 15% / Test 20%

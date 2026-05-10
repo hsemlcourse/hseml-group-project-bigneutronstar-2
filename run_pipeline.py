@@ -342,7 +342,7 @@ def run_cp3_experiment(horizon=HORIZON, threshold=THRESHOLD):
     bt_default  = run_simple_backtest(y_proba_test, fut_rets_test, p_thresh=0.45)
     bt_optimized = run_simple_backtest(y_proba_test, fut_rets_test, p_thresh=best_thresh)
     print(f"\n  {'='*60}")
-    print(f"  TEST RESULTS — Stacking Ensemble (Variant B, enriched features)")
+    print(f"  TEST RESULTS - Stacking Ensemble (Variant B, enriched features)")
     print(f"  {'='*60}")
     print(f"  ROC-AUC  : {metrics['roc_auc']:.4f}")
     print(f"  Accuracy : {metrics['accuracy']:.4f}")
