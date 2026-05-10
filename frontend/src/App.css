@@ -88,6 +88,30 @@ h2 {
   color: var(--text-main);
 }
 
+.controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.controls-row h2 {
+  margin: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.period-selector select {
+  padding: 0.5rem;
+  border-radius: 4px;
+  background-color: #334155;
+  color: #f8fafc;
+  border: 1px solid #475569;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
 .price-info {
   display: flex;
   justify-content: space-between;
