@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './App.css';
 
 interface Prediction {
@@ -85,7 +85,10 @@ function App() {
   const signalColor = prediction.trade_signal.includes('BUY') ? '#22c55e' : prediction.trade_signal.includes('SELL') ? '#ef4444' : '#64748b';
   const isHistorical = selectedPoint.time !== data.timestamp;
 
-  const displayChartData = data.chart_data.slice(-period);
+  const displayChartData = data.chart_data.slice(-period).map(d => ({
+    ...d,
+    selectedPrice: selectedPoint && d.time === selectedPoint.time ? d.price : null
+  }));
 
   return (
     <div className="app-container">
@@ -133,9 +136,7 @@ function App() {
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f8fafc' }}
                 />
                 <Line type="monotone" dataKey="price" stroke="#fbbf24" strokeWidth={2} dot={false} activeDot={{ r: 8, fill: '#fbbf24' }} isAnimationActive={false} />
-                {selectedPoint && (
-                  <ReferenceDot x={selectedPoint.time} y={selectedPoint.price} r={7} fill="#22c55e" stroke="#fff" strokeWidth={3} isFront={true} />
-                )}
+                <Line type="monotone" dataKey="selectedPrice" stroke="none" dot={{ r: 8, fill: '#22c55e', stroke: '#fff', strokeWidth: 3 }} isAnimationActive={false} activeDot={false} />
               </LineChart>
             </ResponsiveContainer>
             <p className="chart-hint">💡 Hover to see the yellow dot, then CLICK EXACTLY ON THE LINE to see the model's prediction at that moment.</p>
