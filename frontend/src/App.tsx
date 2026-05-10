@@ -3,9 +3,22 @@ import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './App.css';
 
+interface Prediction {
+  prediction_class: number;
+  probabilities: {
+    Down: number;
+    Flat: number;
+    Up: number;
+  };
+  confidence: number;
+  trade_signal: string;
+  threshold: number;
+}
+
 interface ChartData {
   time: string;
   price: number;
+  prediction: Prediction;
 }
 
 interface PredictionData {
@@ -13,23 +26,14 @@ interface PredictionData {
   last_price: number;
   timestamp: string;
   chart_data: ChartData[];
-  prediction: {
-    prediction_class: number;
-    probabilities: {
-      Down: number;
-      Flat: number;
-      Up: number;
-    };
-    confidence: number;
-    trade_signal: string;
-    threshold: number;
-  };
+  prediction: Prediction;
 }
 
 function App() {
   const [data, setData] = useState<PredictionData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<ChartData | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -41,10 +45,19 @@ function App() {
     try {
       const response = await axios.get('http://127.0.0.1:8000/api/latest');
       setData(response.data);
+      if (response.data.chart_data && response.data.chart_data.length > 0) {
+        setSelectedPoint(response.data.chart_data[response.data.chart_data.length - 1]);
+      }
     } catch (err: any) {
       setError(err.message || 'Error connecting to the FastAPI backend. Is it running?');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleChartClick = (state: any) => {
+    if (state && state.activePayload && state.activePayload.length > 0) {
+      setSelectedPoint(state.activePayload[0].payload);
     }
   };
 
@@ -62,11 +75,12 @@ function App() {
     );
   }
 
-  if (!data) return null;
+  if (!data || !selectedPoint) return null;
 
-  const { prediction } = data;
+  const { prediction } = selectedPoint;
   const isTradeSignal = prediction.trade_signal !== 'HOLD';
   const signalColor = prediction.trade_signal.includes('BUY') ? '#22c55e' : prediction.trade_signal.includes('SELL') ? '#ef4444' : '#64748b';
+  const isHistorical = selectedPoint.time !== data.timestamp;
 
   return (
     <div className="app-container">
@@ -80,12 +94,12 @@ function App() {
           <h2>Market Overview (Last 50 Hours)</h2>
           <div className="price-info">
             <span className="current-price">${data.last_price.toFixed(2)}</span>
-            <span className="timestamp">Last Updated: {new Date(data.timestamp).toLocaleString()}</span>
+            <span className="timestamp">Latest: {new Date(data.timestamp).toLocaleString()}</span>
           </div>
           
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.chart_data}>
+              <LineChart data={data.chart_data} onClick={handleChartClick} style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                 <XAxis 
                   dataKey="time" 
@@ -97,14 +111,19 @@ function App() {
                   labelFormatter={(label) => new Date(label).toLocaleString()}
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f8fafc' }}
                 />
-                <Line type="monotone" dataKey="price" stroke="#fbbf24" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="price" stroke="#fbbf24" strokeWidth={2} dot={false} activeDot={{ r: 8, fill: '#fbbf24' }} />
               </LineChart>
             </ResponsiveContainer>
+            <p className="chart-hint">💡 Click on any point on the chart to see what the model predicted at that specific hour.</p>
           </div>
         </section>
 
         <section className="prediction-section">
-          <h2>AI Prediction Analysis</h2>
+          <h2>
+            AI Prediction Analysis
+            {isHistorical && <span className="historical-badge">Historical Point</span>}
+          </h2>
+          <p className="selected-time">Analyzing data for: <strong>{new Date(selectedPoint.time).toLocaleString()}</strong></p>
           
           <div className="metrics-grid">
             <div className="metric-card" style={{ borderTop: `4px solid ${signalColor}` }}>
@@ -149,7 +168,7 @@ function App() {
           </div>
 
           <div className="explanation-box">
-            <h3>📖 How it works</h3>
+            <h3>How it works</h3>
             <p>
               This Stacking Ensemble model analyzes 96 features including intermarket correlations (Silver, Oil, DXY) and momentum.
               It uses a selective trading strategy: it only issues a <strong>BUY</strong> or <strong>SELL</strong> signal if its confidence 
@@ -157,8 +176,8 @@ function App() {
             </p>
             <p>
               {isTradeSignal 
-                ? `Currently, the model is ${(prediction.confidence * 100).toFixed(1)}% confident, which is ABOVE the threshold. Therefore, a trade signal is issued.` 
-                : `Currently, the model is only ${(prediction.confidence * 100).toFixed(1)}% confident, which is BELOW the threshold. The signal is HOLD to avoid unnecessary risk.`}
+                ? `At this point in time, the model was ${(prediction.confidence * 100).toFixed(1)}% confident, which is ABOVE the threshold. Therefore, a trade signal was issued.` 
+                : `At this point in time, the model was only ${(prediction.confidence * 100).toFixed(1)}% confident, which is BELOW the threshold. The signal was HOLD to avoid unnecessary risk.`}
             </p>
           </div>
         </section>

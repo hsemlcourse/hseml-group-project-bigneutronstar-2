@@ -64,6 +64,28 @@ h2 {
   color: var(--text-muted);
   border-bottom: 1px solid #334155;
   padding-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.historical-badge {
+  background-color: var(--accent);
+  color: #000;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.selected-time {
+  margin: 0 0 1.5rem 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.selected-time strong {
+  color: var(--text-main);
 }
 
 .price-info {
@@ -85,6 +107,14 @@ h2 {
 
 .chart-container {
   margin-top: 1rem;
+}
+
+.chart-hint {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-top: 1rem;
+  font-style: italic;
 }
 
 .metrics-grid {
