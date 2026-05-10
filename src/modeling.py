@@ -502,3 +502,102 @@ def optimize_threshold(
             best_hr = bt["hit_rate"]
             best_thresh = t_f
     return best_thresh, best_hr, results
+
+
+# ---------------------------------------------------------------------------
+# Iteration 6: Improved Stacking v2 — class balancing + LightGBM
+# ---------------------------------------------------------------------------
+
+def get_stacking_model_v2(seed: int = RANDOM_SEED, use_lgbm: bool = True) -> StackingClassifier:
+    """
+    Improved Stacking Ensemble (v2):
+      - class_weight='balanced' on all base models (helps flat-class dominance)
+      - LightGBM added as 5th estimator if available
+      - Slightly more trees, less regularization for better signal capture
+    """
+    estimators = [
+        (
+            "rf",
+            RandomForestClassifier(
+                n_estimators=400, max_depth=7, min_samples_leaf=15,
+                max_features="sqrt", random_state=seed, n_jobs=1,
+                class_weight="balanced",
+            ),
+        ),
+        (
+            "gb",
+            GradientBoostingClassifier(
+                n_estimators=300, max_depth=3, learning_rate=0.03,
+                min_samples_leaf=15, subsample=0.8, random_state=seed,
+            ),
+        ),
+        (
+            "cb",
+            CatBoostClassifier(
+                iterations=600, depth=5, learning_rate=0.03,
+                l2_leaf_reg=3, random_seed=seed, verbose=0, thread_count=1,
+                auto_class_weights="Balanced",
+            ),
+        ),
+        (
+            "et",
+            ExtraTreesClassifier(
+                n_estimators=400, max_depth=7, min_samples_leaf=15,
+                max_features="sqrt", random_state=seed, n_jobs=1,
+                class_weight="balanced",
+            ),
+        ),
+    ]
+
+    if use_lgbm:
+        try:
+            import lightgbm as lgb  # noqa: PLC0415
+            estimators.append((
+                "lgbm",
+                lgb.LGBMClassifier(
+                    n_estimators=500, max_depth=6, learning_rate=0.03,
+                    num_leaves=31, random_state=seed, n_jobs=1,
+                    verbose=-1, class_weight="balanced",
+                ),
+            ))
+            print("  [INFO] LightGBM added to Stacking v2.")
+        except Exception as exc:
+            print(f"  [WARN] LightGBM unavailable: {exc}")
+
+    meta = LogisticRegression(
+        C=0.5, max_iter=1000, random_state=seed,
+        solver="lbfgs", multi_class="multinomial",
+    )
+    return StackingClassifier(
+        estimators=estimators,
+        final_estimator=meta,
+        cv=3,
+        passthrough=False,
+        n_jobs=1,
+    )
+
+
+def get_top_feature_indices(
+    stack: StackingClassifier,
+    feature_names: list,
+    top_k: int = 50,
+):
+    """
+    Aggregate feature importances from all tree-based models in a fitted
+    StackingClassifier and return the indices + names of the top_k features.
+    Uses mean importance across models (normalised within each model first).
+    """
+    all_importances = []
+    for _name, model in stack.named_estimators_.items():
+        if hasattr(model, "feature_importances_"):
+            imp = model.feature_importances_
+            normed = imp / (imp.sum() + 1e-12)  # normalise
+            all_importances.append(normed)
+
+    if not all_importances:
+        return np.arange(len(feature_names)), feature_names
+
+    avg_imp = np.mean(all_importances, axis=0)
+    top_idx = np.argsort(avg_imp)[::-1][:top_k]
+    top_names = [feature_names[i] for i in top_idx]
+    return top_idx, top_names
