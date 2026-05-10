@@ -35,6 +35,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<ChartData | null>(null);
   const [animationKey, setAnimationKey] = useState<number>(0);
+  const [period, setPeriod] = useState<number>(50);
 
   useEffect(() => {
     fetchData();
@@ -59,7 +60,7 @@ function App() {
   const handleChartClick = (state: any) => {
     if (state && state.activePayload && state.activePayload.length > 0) {
       setSelectedPoint(state.activePayload[0].payload);
-      setAnimationKey(prev => prev + 1);
+      setAnimationKey(Date.now());
     }
   };
 
@@ -84,6 +85,8 @@ function App() {
   const signalColor = prediction.trade_signal.includes('BUY') ? '#22c55e' : prediction.trade_signal.includes('SELL') ? '#ef4444' : '#64748b';
   const isHistorical = selectedPoint.time !== data.timestamp;
 
+  const displayChartData = data.chart_data.slice(-period);
+
   return (
     <div className="app-container">
       <header className="app-header">
@@ -93,7 +96,20 @@ function App() {
 
       <main className="main-content">
         <section className="chart-section">
-          <h2>Market Overview (Last 50 Hours)</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2>Market Overview</h2>
+            <select 
+              value={period} 
+              onChange={(e) => setPeriod(Number(e.target.value))}
+              style={{ padding: '0.5rem', borderRadius: '4px', backgroundColor: '#334155', color: '#f8fafc', border: 'none', cursor: 'pointer' }}
+            >
+              <option value={50}>Last 50 Hours</option>
+              <option value={100}>Last 100 Hours</option>
+              <option value={200}>Last 200 Hours</option>
+              <option value={720}>Last 1 Month</option>
+            </select>
+          </div>
+          
           <div className="price-info">
             <span className="current-price">${data.last_price.toFixed(2)}</span>
             <span className="timestamp">Latest: {new Date(data.timestamp).toLocaleString()}</span>
@@ -101,11 +117,14 @@ function App() {
           
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.chart_data} onClick={handleChartClick} style={{ cursor: 'pointer' }}>
+              <LineChart data={displayChartData} onClick={handleChartClick} style={{ cursor: 'crosshair' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                 <XAxis 
                   dataKey="time" 
-                  tickFormatter={(tick) => new Date(tick).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  tickFormatter={(tick) => {
+                    const d = new Date(tick);
+                    return period > 100 ? `${d.getDate()}/${d.getMonth()+1}` : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  }}
                   stroke="#888"
                 />
                 <YAxis domain={['auto', 'auto']} stroke="#888" />
@@ -113,17 +132,17 @@ function App() {
                   labelFormatter={(label) => new Date(label).toLocaleString()}
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#f8fafc' }}
                 />
-                <Line type="monotone" dataKey="price" stroke="#fbbf24" strokeWidth={2} dot={false} activeDot={{ r: 8, fill: '#fbbf24' }} />
+                <Line type="monotone" dataKey="price" stroke="#fbbf24" strokeWidth={2} dot={false} activeDot={{ r: 8, fill: '#fbbf24' }} isAnimationActive={false} />
                 {selectedPoint && (
-                  <ReferenceDot x={selectedPoint.time} y={selectedPoint.price} r={6} fill="#22c55e" stroke="#fff" strokeWidth={2} isFront={true} />
+                  <ReferenceDot x={selectedPoint.time} y={selectedPoint.price} r={7} fill="#22c55e" stroke="#fff" strokeWidth={3} isFront={true} />
                 )}
               </LineChart>
             </ResponsiveContainer>
-            <p className="chart-hint">💡 Click on any point on the chart to see what the model predicted at that specific hour.</p>
+            <p className="chart-hint">💡 Hover to see the yellow dot, then CLICK EXACTLY ON THE LINE to see the model's prediction at that moment.</p>
           </div>
         </section>
 
-        <section key={animationKey} className="prediction-section fade-in">
+        <section key={`section-${animationKey}`} className="prediction-section fade-in">
           <h2>
             AI Prediction Analysis
             {isHistorical && <span className="historical-badge">Historical Point</span>}
@@ -131,19 +150,19 @@ function App() {
           <p className="selected-time">Analyzing data for: <strong>{new Date(selectedPoint.time).toLocaleString()}</strong></p>
           
           <div className="metrics-grid">
-            <div className="metric-card" style={{ borderTop: `4px solid ${signalColor}` }}>
+            <div className="metric-card spin-card" style={{ borderTop: `4px solid ${signalColor}` }}>
               <h3>Trade Signal</h3>
               <div className="metric-value" style={{ color: signalColor }}>{prediction.trade_signal}</div>
               <p className="metric-desc">Based on {prediction.threshold * 100}% threshold logic</p>
             </div>
             
-            <div className="metric-card">
+            <div className="metric-card spin-card">
               <h3>Model Confidence</h3>
               <div className="metric-value">{(prediction.confidence * 100).toFixed(1)}%</div>
               <p className="metric-desc">Certainty of the top predicted class</p>
             </div>
             
-            <div className="metric-card">
+            <div className="metric-card spin-card">
               <h3>Top Probability</h3>
               <div className="metric-value">
                 {prediction.prediction_class === 0 ? "Down" : prediction.prediction_class === 2 ? "Up" : "Flat"}
