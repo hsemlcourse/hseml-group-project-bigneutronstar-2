@@ -63,58 +63,58 @@
   },
   "variant_b_holdout": {
     "LogisticRegression": {
-      "accuracy": 0.5147842947164324,
-      "f1_macro": 0.3288718404320503,
-      "roc_auc": 0.5655218700889731,
+      "accuracy": 0.5009756097560976,
+      "f1_macro": 0.32570554657778317,
+      "roc_auc": 0.561924920891062,
       "backtest": {
-        "n_trades": 2014,
-        "hit_rate": 0.5690168818272096,
-        "avg_return_trade": 0.003460250310714233,
-        "cum_return": 6.9689441257784654
+        "n_trades": 1987,
+        "hit_rate": 0.5606441872169099,
+        "avg_return_trade": 0.003009874313824443,
+        "cum_return": 5.980620261569168
       }
     },
     "RandomForest": {
-      "accuracy": 0.49539505574406206,
-      "f1_macro": 0.3456935621619716,
-      "roc_auc": 0.5596867156360871,
+      "accuracy": 0.5019512195121951,
+      "f1_macro": 0.3507295614918713,
+      "roc_auc": 0.5689143751186724,
       "backtest": {
-        "n_trades": 1648,
-        "hit_rate": 0.5618932038834952,
-        "avg_return_trade": 0.0025100602201330257,
-        "cum_return": 4.136579242779226
+        "n_trades": 1582,
+        "hit_rate": 0.577117572692794,
+        "avg_return_trade": 0.003058239185219545,
+        "cum_return": 4.83813439101732
       }
     },
     "GradientBoosting": {
-      "accuracy": 0.4774600096946195,
-      "f1_macro": 0.334845674263277,
-      "roc_auc": 0.5626367020839572,
+      "accuracy": 0.49902439024390244,
+      "f1_macro": 0.34864448953335886,
+      "roc_auc": 0.5814850871579584,
       "backtest": {
-        "n_trades": 1876,
-        "hit_rate": 0.5437100213219617,
-        "avg_return_trade": 0.0011984071997609418,
-        "cum_return": 2.248211906751527
+        "n_trades": 1855,
+        "hit_rate": 0.5574123989218329,
+        "avg_return_trade": 0.001650123521754131,
+        "cum_return": 3.060979132853913
       }
     },
     "CatBoost": {
-      "accuracy": 0.49200193892389726,
-      "f1_macro": 0.34754762151788937,
-      "roc_auc": 0.551097930732366,
+      "accuracy": 0.47073170731707314,
+      "f1_macro": 0.3326832012517991,
+      "roc_auc": 0.5457859573179155,
       "backtest": {
-        "n_trades": 1901,
-        "hit_rate": 0.551814834297738,
-        "avg_return_trade": 0.002270268469069937,
-        "cum_return": 4.31578035970195
+        "n_trades": 1858,
+        "hit_rate": 0.5344456404736275,
+        "avg_return_trade": 0.0015186667705917865,
+        "cum_return": 2.821682859759539
       }
     },
     "ExtraTrees": {
-      "accuracy": 0.5225399903053806,
-      "f1_macro": 0.3213485496171627,
-      "roc_auc": 0.5772950476535625,
+      "accuracy": 0.5209756097560976,
+      "f1_macro": 0.31866348548476875,
+      "roc_auc": 0.5685274862382489,
       "backtest": {
-        "n_trades": 1806,
-        "hit_rate": 0.5830564784053156,
-        "avg_return_trade": 0.003111359883443417,
-        "cum_return": 5.619115949498812
+        "n_trades": 1874,
+        "hit_rate": 0.5853788687299893,
+        "avg_return_trade": 0.0032719178648494994,
+        "cum_return": 6.1315740787279625
       }
     }
   },
@@ -147,198 +147,147 @@
   },
   "variant_b_walkforward": {
     "LogisticRegression": {
-      "accuracy": 0.47633824670287045,
-      "f1_macro": 0.3593536293865309,
-      "roc_auc": 0.5601561467994771
+      "accuracy": 0.4647923988025511,
+      "f1_macro": 0.3508802254093941,
+      "roc_auc": 0.5573885180892216
     },
     "RandomForest": {
-      "accuracy": 0.504654771140419,
-      "f1_macro": 0.33789768967150424,
-      "roc_auc": 0.562843504407946
+      "accuracy": 0.4969412989717558,
+      "f1_macro": 0.3335495793733035,
+      "roc_auc": 0.5573305152517413
     },
     "GradientBoosting": {
-      "accuracy": 0.4753038531161107,
-      "f1_macro": 0.35758422871473333,
-      "roc_auc": 0.5555786807882557
+      "accuracy": 0.475725628009892,
+      "f1_macro": 0.36252330750699885,
+      "roc_auc": 0.5542596249015701
     },
     "CatBoost": {
-      "accuracy": 0.482673907421774,
-      "f1_macro": 0.3495984728247959,
-      "roc_auc": 0.5604421450975995
+      "accuracy": 0.4832747624625797,
+      "f1_macro": 0.350332639328653,
+      "roc_auc": 0.5574504802769742
     },
     "ExtraTrees": {
-      "accuracy": 0.5160331005947764,
-      "f1_macro": 0.3042582440304526,
-      "roc_auc": 0.5644238667979669
+      "accuracy": 0.5177664974619289,
+      "f1_macro": 0.3054322946740478,
+      "roc_auc": 0.5633407076470524
     }
   },
-  "tuning": {
-    "LogisticRegression": {
-      "best_score": 0.5704128101425243,
-      "best_params": {
-        "C": 0.01,
-        "solver": "lbfgs",
-        "max_iter": 1000,
-        "multi_class": "multinomial"
-      }
-    },
-    "RandomForest": {
-      "best_score": 0.5628298263714336,
-      "best_params": {
-        "n_estimators": 200,
-        "max_depth": 8,
-        "min_samples_leaf": 20,
-        "max_features": "sqrt",
-        "n_jobs": -1
-      }
-    },
-    "GradientBoosting": {
-      "best_score": 0.5631460811303831,
-      "best_params": {
-        "n_estimators": 100,
-        "max_depth": 4,
-        "learning_rate": 0.05,
-        "min_samples_leaf": 20,
-        "subsample": 0.8
-      }
-    },
-    "CatBoost": {
-      "best_score": 0.5592476263388562,
-      "best_params": {
-        "iterations": 300,
-        "depth": 6,
-        "learning_rate": 0.03,
-        "l2_leaf_reg": 3,
-        "verbose": 0,
-        "thread_count": -1
-      }
-    },
-    "ExtraTrees": {
-      "best_score": 0.5659995960434588,
-      "best_params": {
-        "n_estimators": 400,
-        "max_depth": 6,
-        "min_samples_leaf": 20,
-        "max_features": "sqrt",
-        "n_jobs": -1
-      }
-    }
-  },
+  "tuning": {},
   "tuned_a_holdout": {
-    "LogisticRegression_tuned": {
-      "accuracy": 0.48673237300985595,
-      "f1_macro": 0.3103139574828032,
-      "roc_auc": 0.5441237160722158,
+    "LogisticRegression": {
+      "accuracy": 0.47536012130401817,
+      "f1_macro": 0.3008767731308279,
+      "roc_auc": 0.5368301887978906,
       "backtest": {
-        "n_trades": 2567,
-        "hit_rate": 0.5407089988313206,
-        "avg_return_trade": 0.00338228692024326,
-        "cum_return": 8.682330524264447
+        "n_trades": 2517,
+        "hit_rate": 0.5331744139849026,
+        "avg_return_trade": 0.0024194473902409068,
+        "cum_return": 6.089749081236363
       }
     },
-    "RandomForest_tuned": {
+    "RandomForest": {
       "accuracy": 0.4829416224412434,
-      "f1_macro": 0.3046843545300999,
-      "roc_auc": 0.5495778487992787,
+      "f1_macro": 0.30575498303852494,
+      "roc_auc": 0.5500721769238749,
       "backtest": {
-        "n_trades": 1986,
-        "hit_rate": 0.5553877139979859,
-        "avg_return_trade": 0.0009403711498535787,
-        "cum_return": 1.8675771036092073
+        "n_trades": 1985,
+        "hit_rate": 0.5541561712846348,
+        "avg_return_trade": 0.0006574616080401976,
+        "cum_return": 1.3050612919597921
       }
     },
-    "GradientBoosting_tuned": {
-      "accuracy": 0.4962092494313874,
-      "f1_macro": 0.3449012851911646,
-      "roc_auc": 0.5545449243946131,
+    "GradientBoosting": {
+      "accuracy": 0.4988627748294162,
+      "f1_macro": 0.33101790008014964,
+      "roc_auc": 0.5439748528348712,
       "backtest": {
-        "n_trades": 2277,
-        "hit_rate": 0.5625823451910409,
-        "avg_return_trade": 0.0023624839174950394,
-        "cum_return": 5.379375880136204
+        "n_trades": 2130,
+        "hit_rate": 0.5558685446009389,
+        "avg_return_trade": 0.0006459845142607838,
+        "cum_return": 1.375947015375468
       }
     },
-    "CatBoost_tuned": {
-      "accuracy": 0.4609552691432904,
-      "f1_macro": 0.30972948820583474,
-      "roc_auc": 0.5340588691553257,
+    "CatBoost": {
+      "accuracy": 0.4670204700530705,
+      "f1_macro": 0.31584225138203575,
+      "roc_auc": 0.5453159934926987,
       "backtest": {
-        "n_trades": 2305,
-        "hit_rate": 0.527114967462039,
-        "avg_return_trade": 0.0001894367893277865,
-        "cum_return": 0.43665179940054777
+        "n_trades": 2362,
+        "hit_rate": 0.5321761219305673,
+        "avg_return_trade": 0.00024482785277470657,
+        "cum_return": 0.5782833882538563
       }
     },
-    "ExtraTrees_tuned": {
+    "ExtraTrees": {
       "accuracy": 0.4749810462471569,
-      "f1_macro": 0.2214770100344634,
-      "roc_auc": 0.5428679254511841,
+      "f1_macro": 0.23412982468100577,
+      "roc_auc": 0.5503931409295751,
       "backtest": {
-        "n_trades": 2594,
-        "hit_rate": 0.5316114109483423,
-        "avg_return_trade": 0.0008613751628925939,
-        "cum_return": 2.2344071725433876
+        "n_trades": 2443,
+        "hit_rate": 0.5440032746623005,
+        "avg_return_trade": 0.0012119822930661234,
+        "cum_return": 2.960872741960539
       }
     }
   },
   "tuned_b_holdout": {
-    "LogisticRegression_tuned": {
-      "accuracy": 0.5244789142026175,
-      "f1_macro": 0.3337356710670054,
-      "roc_auc": 0.5742337738485229,
+    "LogisticRegression": {
+      "accuracy": 0.5009756097560976,
+      "f1_macro": 0.32570554657778317,
+      "roc_auc": 0.561924920891062,
       "backtest": {
-        "n_trades": 2013,
-        "hit_rate": 0.5851962245404868,
-        "avg_return_trade": 0.004486845069846539,
-        "cum_return": 9.032019125601083
+        "n_trades": 1987,
+        "hit_rate": 0.5606441872169099,
+        "avg_return_trade": 0.003009874313824443,
+        "cum_return": 5.980620261569168
       }
     },
-    "RandomForest_tuned": {
-      "accuracy": 0.5026660203587009,
-      "f1_macro": 0.3516018124682225,
-      "roc_auc": 0.5560669251282048,
+    "RandomForest": {
+      "accuracy": 0.5019512195121951,
+      "f1_macro": 0.3507295614918713,
+      "roc_auc": 0.5689143751186724,
       "backtest": {
-        "n_trades": 1664,
-        "hit_rate": 0.5612980769230769,
-        "avg_return_trade": 0.0024306384320118965,
-        "cum_return": 4.0445823508677945
+        "n_trades": 1582,
+        "hit_rate": 0.577117572692794,
+        "avg_return_trade": 0.003058239185219545,
+        "cum_return": 4.83813439101732
       }
     },
-    "GradientBoosting_tuned": {
-      "accuracy": 0.5002423654871546,
-      "f1_macro": 0.35259937822917015,
-      "roc_auc": 0.5598500081252652,
+    "GradientBoosting": {
+      "accuracy": 0.49902439024390244,
+      "f1_macro": 0.34864448953335886,
+      "roc_auc": 0.5814850871579584,
       "backtest": {
-        "n_trades": 1898,
-        "hit_rate": 0.5590094836670179,
-        "avg_return_trade": 0.0016789059456694794,
-        "cum_return": 3.1865634848806725
+        "n_trades": 1855,
+        "hit_rate": 0.5574123989218329,
+        "avg_return_trade": 0.001650123521754131,
+        "cum_return": 3.060979132853913
       }
     },
-    "CatBoost_tuned": {
-      "accuracy": 0.48036839554047506,
-      "f1_macro": 0.3396751104742283,
-      "roc_auc": 0.5414498140564383,
+    "CatBoost": {
+      "accuracy": 0.47073170731707314,
+      "f1_macro": 0.3326832012517991,
+      "roc_auc": 0.5457859573179155,
       "backtest": {
-        "n_trades": 1808,
-        "hit_rate": 0.5425884955752213,
-        "avg_return_trade": 0.0015382590600572384,
-        "cum_return": 2.781172380583487
+        "n_trades": 1858,
+        "hit_rate": 0.5344456404736275,
+        "avg_return_trade": 0.0015186667705917865,
+        "cum_return": 2.821682859759539
       }
     },
-    "ExtraTrees_tuned": {
-      "accuracy": 0.5172079495879787,
-      "f1_macro": 0.3048743497581024,
-      "roc_auc": 0.5692405631522924,
+    "ExtraTrees": {
+      "accuracy": 0.5209756097560976,
+      "f1_macro": 0.31866348548476875,
+      "roc_auc": 0.5685274862382489,
       "backtest": {
-        "n_trades": 1905,
-        "hit_rate": 0.579002624671916,
-        "avg_return_trade": 0.0031484964846165884,
-        "cum_return": 5.997885803194601
+        "n_trades": 1874,
+        "hit_rate": 0.5853788687299893,
+        "avg_return_trade": 0.0032719178648494994,
+        "cum_return": 6.1315740787279625
       }
     }
   },
-  "final_model": "LogisticRegression_tuned",
+  "final_model": "GradientBoosting",
   "external_factors_improved": "True",
   "feature_cols_a": [
     "return_1",
@@ -466,6 +415,13 @@
     "gold_minus_silver_ret",
     "gold_silver_ratio",
     "vix_level",
-    "tnx_change1d"
+    "tnx_change1d",
+    "gold_dxy_corr_24",
+    "gold_dxy_corr_120",
+    "gold_silver_corr_24",
+    "gold_silver_corr_120",
+    "gold_tnx_corr_24",
+    "gold_tnx_corr_120",
+    "vol_regime"
   ]
 }
