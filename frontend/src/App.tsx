@@ -267,6 +267,21 @@ function App() {
             </div>
           </div>
 
+          <div className="mini-cards-row" key={`mini-${animationKey}`}>
+            <div className="mini-card spin-card" style={{ animationDelay: '0.3s', borderTop: '2px solid var(--down-color)' }}>
+              <h4>Down</h4>
+              <div className="mini-value">{(prediction.probabilities.Down * 100).toFixed(1)}%</div>
+            </div>
+            <div className="mini-card spin-card" style={{ animationDelay: '0.4s', borderTop: '2px solid var(--flat-color)' }}>
+              <h4>Flat</h4>
+              <div className="mini-value">{(prediction.probabilities.Flat * 100).toFixed(1)}%</div>
+            </div>
+            <div className="mini-card spin-card" style={{ animationDelay: '0.5s', borderTop: '2px solid var(--up-color)' }}>
+              <h4>Up</h4>
+              <div className="mini-value">{(prediction.probabilities.Up * 100).toFixed(1)}%</div>
+            </div>
+          </div>
+
           <div className="probabilities-bar" key={`bar-${animationKey}`}>
             <h3>Class Probabilities</h3>
             <div className="progress-container">
