@@ -1,29 +1,23 @@
 """
 Standalone runner for CP3 experiment only.
 Skips the full CP2 pipeline — useful for fast iteration.
-
 Iteration 5: threshold scan on BOTH val and test sets.
 Goal: find minimum threshold that gives hit_rate >= 67% with max trades.
 """
 import sys
 import numpy as np
 from pathlib import Path
-
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
-
 from src.preprocessing import build_dataset_3way
 from src.modeling import (
     get_stacking_model, optimize_threshold,
     run_simple_backtest, _evaluate, RANDOM_SEED,
 )
-
 HORIZON   = 24
 THRESHOLD = 0.002
 TARGET_HR = 0.67
-MIN_TRADES = 100  # минимальный объём для статистической значимости
-
-
+MIN_TRADES = 100  
 def full_threshold_scan(y_proba, future_returns, label="",
                         p_min=0.35, p_max=0.72, step=0.02):
     """Сканируем пороги и печатаем полную таблицу."""
@@ -49,8 +43,6 @@ def full_threshold_scan(y_proba, future_returns, label="",
               f"{r['n_trades']:>8} {r['avg_ret']:>10.5f} "
               f"{r['cum_ret']:>10.4f}{flag}")
     return rows
-
-
 def pick_balanced_threshold(rows, target_hr=TARGET_HR, min_trades=MIN_TRADES):
     """Минимальный порог с hit_rate >= target и trades >= min_trades."""
     candidates = [r for r in rows
@@ -58,8 +50,6 @@ def pick_balanced_threshold(rows, target_hr=TARGET_HR, min_trades=MIN_TRADES):
     if not candidates:
         return None
     return min(candidates, key=lambda r: r["threshold"])
-
-
 if __name__ == "__main__":
     np.random.seed(RANDOM_SEED)
     print("=" * 65)
@@ -67,8 +57,6 @@ if __name__ == "__main__":
     print(f"Horizon={HORIZON}h | Threshold={THRESHOLD} | Seed={RANDOM_SEED}")
     print(f"Goal: HitRate ≥ {TARGET_HR:.0%} with ≥ {MIN_TRADES} trades")
     print("=" * 65)
-
-    # 1. Данные
     (X_train, y_train,
      X_val,   y_val,
      X_test,  y_test,
@@ -79,23 +67,15 @@ if __name__ == "__main__":
     )
     print(f"\n  Train: {len(X_train)}  Val: {len(X_val)}  Test: {len(X_test)}")
     print(f"  Features: {len(feature_cols)}")
-
-    # 2. Обучаем Stacking
     print("\n  Training Stacking Ensemble...")
     stack = get_stacking_model(seed=RANDOM_SEED)
     stack.fit(X_train, y_train)
-
-    # 3. Полные сканы по val и test
     y_proba_val  = stack.predict_proba(X_val)
     y_proba_test = stack.predict_proba(X_test)
-
     val_rows  = full_threshold_scan(y_proba_val,  fut_rets_val,  label="VAL ")
     test_rows = full_threshold_scan(y_proba_test, fut_rets_test, label="TEST")
-
-    # 4. Выбираем лучший "balanced" порог по test
     best_val  = pick_balanced_threshold(val_rows)
     best_test = pick_balanced_threshold(test_rows)
-
     print(f"\n  {'='*60}")
     print(f"  SUMMARY — Balanced strategy (HitRate≥{TARGET_HR:.0%}, Trades≥{MIN_TRADES})")
     print(f"  {'='*60}")
@@ -111,8 +91,6 @@ if __name__ == "__main__":
         print(f"\n  Best VAL  threshold : {best_val['threshold']:.2f}")
         print(f"  Val   HitRate       : {best_val['hit_rate']:.2f}")
         print(f"  Val   Trades        : {best_val['n_trades']}")
-
-    # 5. Финальные метрики модели на test
     y_pred_test = stack.predict(X_test)
     metrics = _evaluate(y_test, y_pred_test, y_proba_test)
     print(f"\n  Model metrics (test set):")
@@ -120,4 +98,3 @@ if __name__ == "__main__":
     print(f"  Accuracy : {metrics['accuracy']:.4f}")
     print(f"  F1 macro : {metrics['f1_macro']:.4f}")
     print(f"  {'='*60}")
-

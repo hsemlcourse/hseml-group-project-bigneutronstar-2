@@ -1,4 +1,3 @@
-# Обучение и оценка моделей для золота.
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import (
@@ -17,10 +16,7 @@ from sklearn.metrics import (
     classification_report,
 )
 from catboost import CatBoostClassifier
-
 RANDOM_SEED = 42
-
-
 def get_models(tuned: bool = False):
     """Список моделей для оценки."""
     if tuned:
@@ -61,8 +57,6 @@ def get_models(tuned: bool = False):
             n_jobs=-1,
         ),
     }
-
-
 def get_tuned_models():
     """Тюненые модели."""
     return {
@@ -104,8 +98,6 @@ def get_tuned_models():
             n_jobs=-1,
         ),
     }
-
-
 def get_ensemble(best_results: dict):
     """Создает Soft Voting Ensemble из лучших моделей."""
     estimators = []
@@ -120,8 +112,6 @@ def get_ensemble(best_results: dict):
         estimators.append(("cb", CatBoostClassifier(**p)))
     if len(estimators) < 2: return None
     return VotingClassifier(estimators=estimators, voting="soft")
-
-
 def _evaluate(y_true, y_pred, y_proba):
     """Compute standard classification metrics for multiclass."""
     try:
@@ -136,8 +126,6 @@ def _evaluate(y_true, y_pred, y_proba):
         "confusion_matrix": confusion_matrix(y_true, y_pred),
         "report": classification_report(y_true, y_pred, digits=4, zero_division=0),
     }
-
-
 def run_simple_backtest(y_proba, future_returns, p_thresh=0.45):
     """
     Very simple vectorized backtest logic.
@@ -162,8 +150,6 @@ def run_simple_backtest(y_proba, future_returns, p_thresh=0.45):
         "avg_return_trade": avg_return_trade,
         "cum_return": cum_return,
     }
-
-
 def train_and_evaluate(X_train, y_train, X_test, y_test, feature_names=None,
                        tuned: bool = False, verbose: bool = True):
     """
@@ -173,32 +159,26 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, feature_names=None,
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
-
     models = get_models(tuned=tuned)
     results = {}
-
     for name, model in models.items():
         if verbose:
             print(f"\n{'='*60}")
             print(f"Training: {name}")
             print(f"{'='*60}")
-
         is_linear = "Logistic" in name
         X_tr = X_train_scaled if is_linear else X_train
         X_te = X_test_scaled if is_linear else X_test
-
         model.fit(X_tr, y_train)
         y_pred = model.predict(X_te)
         y_proba = model.predict_proba(X_te)
         metrics = _evaluate(y_test, y_pred, y_proba)
-
         if verbose:
             print(f"Accuracy:   {metrics['accuracy']:.4f}")
             print(f"F1 (macro): {metrics['f1_macro']:.4f}")
             print(f"ROC-AUC:    {metrics['roc_auc']:.4f}")
             print(f"\nConfusion matrix:\n{metrics['confusion_matrix']}")
             print(f"\nClassification report:\n{metrics['report']}")
-
         results[name] = {
             "model": model,
             "scaler": scaler if is_linear else None,
@@ -207,8 +187,6 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, feature_names=None,
             "y_proba": y_proba,
         }
     return results
-
-
 def walk_forward_evaluate(df, feature_cols, splits, model_name="GradientBoosting",
                           tuned: bool = False, verbose: bool = True):
     """
@@ -217,34 +195,28 @@ def walk_forward_evaluate(df, feature_cols, splits, model_name="GradientBoosting
     """
     models_dict = get_models(tuned=tuned)
     fold_metrics = []
-
     for fold_i, (train_idx, test_idx) in enumerate(splits):
         X_tr = df.iloc[train_idx][feature_cols].values
         y_tr = df.iloc[train_idx]["target"].values
         X_te = df.iloc[test_idx][feature_cols].values
         y_te = df.iloc[test_idx]["target"].values
-
         is_linear = "Logistic" in model_name
         if is_linear:
             scaler_fold = StandardScaler()
             X_tr = scaler_fold.fit_transform(X_tr)
             X_te = scaler_fold.transform(X_te)
-
         model = _clone_model(models_dict[model_name])
         model.fit(X_tr, y_tr)
         y_pred = model.predict(X_te)
         y_proba = model.predict_proba(X_te)
-
         metrics = _evaluate(y_te, y_pred, y_proba)
         metrics["fold"] = fold_i
         metrics["train_size"] = len(train_idx)
         metrics["test_size"] = len(test_idx)
         fold_metrics.append(metrics)
-
         if verbose:
             print(f"  Fold {fold_i}: train={len(train_idx)}, test={len(test_idx)}, "
                   f"ROC-AUC={metrics['roc_auc']:.4f}, Acc={metrics['accuracy']:.4f}")
-
     mean_metrics = {
         "accuracy": np.mean([m["accuracy"] for m in fold_metrics]),
         "f1_macro": np.mean([m["f1_macro"] for m in fold_metrics]),
@@ -254,14 +226,10 @@ def walk_forward_evaluate(df, feature_cols, splits, model_name="GradientBoosting
         print(f"  Mean:  ROC-AUC={mean_metrics['roc_auc']:.4f}, "
               f"Acc={mean_metrics['accuracy']:.4f}, F1(macro)={mean_metrics['f1_macro']:.4f}")
     return fold_metrics, mean_metrics
-
-
 def _clone_model(model):
     """Create a fresh copy of a model with the same hyperparameters."""
     from sklearn.base import clone
     return clone(model)
-
-
 def tune_hyperparameters(df, feature_cols, splits, verbose=True):
     """
     Grid search over key hyperparameters using walk-forward CV.
@@ -272,8 +240,6 @@ def tune_hyperparameters(df, feature_cols, splits, verbose=True):
         print("\n" + "=" * 60)
         print("HYPERPARAMETER TUNING (walk-forward CV)")
         print("=" * 60)
-
-    # -- Logistic Regression --------------------------------------
     lr_configs = [
         {"C": c, "solver": "lbfgs", "max_iter": 1000,
          "random_state": RANDOM_SEED, "multi_class": "multinomial"}
@@ -283,8 +249,6 @@ def tune_hyperparameters(df, feature_cols, splits, verbose=True):
         LogisticRegression, lr_configs, df, feature_cols,
         splits, scale=True, verbose=verbose, name="LogisticRegression"
     )
-
-    # -- Random Forest --------------------------------------------
     rf_configs = [
         {"n_estimators": n, "max_depth": d, "min_samples_leaf": m,
          "max_features": f, "random_state": RANDOM_SEED, "n_jobs": -1}
@@ -297,8 +261,6 @@ def tune_hyperparameters(df, feature_cols, splits, verbose=True):
         RandomForestClassifier, rf_configs, df, feature_cols,
         splits, scale=False, verbose=verbose, name="RandomForest"
     )
-
-    # -- Gradient Boosting ----------------------------------------
     gb_configs = [
         {"n_estimators": n, "max_depth": d, "learning_rate": lr,
          "min_samples_leaf": m, "subsample": ss, "random_state": RANDOM_SEED}
@@ -312,8 +274,6 @@ def tune_hyperparameters(df, feature_cols, splits, verbose=True):
         GradientBoostingClassifier, gb_configs, df, feature_cols,
         splits, scale=False, verbose=verbose, name="GradientBoosting"
     )
-
-    # -- CatBoost (optimized grid) --------------------------------
     cb_configs = [
         {"iterations": itr, "depth": dep, "learning_rate": lr,
          "l2_leaf_reg": 3, "random_seed": RANDOM_SEED, "verbose": 0,
@@ -326,8 +286,6 @@ def tune_hyperparameters(df, feature_cols, splits, verbose=True):
         CatBoostClassifier, cb_configs, df, feature_cols,
         splits, scale=False, verbose=verbose, name="CatBoost"
     )
-
-    # -- ExtraTrees ----------------------------------------------
     et_configs = [
         {"n_estimators": n, "max_depth": d, "min_samples_leaf": m,
          "max_features": f, "random_state": RANDOM_SEED, "n_jobs": -1}
@@ -340,16 +298,12 @@ def tune_hyperparameters(df, feature_cols, splits, verbose=True):
         ExtraTreesClassifier, et_configs, df, feature_cols,
         splits, scale=False, verbose=verbose, name="ExtraTrees"
     )
-
     return best_results
-
-
 def _grid_search_model(model_class, configs, df, feature_cols, splits,
                         scale=False, verbose=True, name=""):
     """Run walk-forward CV for each config, return best config and score."""
     best_score = -1
     best_config = None
-
     for config in configs:
         scores = []
         for train_idx, test_idx in splits:
@@ -357,12 +311,10 @@ def _grid_search_model(model_class, configs, df, feature_cols, splits,
             y_tr = df.iloc[train_idx]["target"].values
             X_te = df.iloc[test_idx][feature_cols].values
             y_te = df.iloc[test_idx]["target"].values
-
             if scale:
                 sc = StandardScaler()
                 X_tr = sc.fit_transform(X_tr)
                 X_te = sc.transform(X_te)
-
             model = model_class(**config)
             model.fit(X_tr, y_tr)
             y_proba = model.predict_proba(X_te)
@@ -370,17 +322,13 @@ def _grid_search_model(model_class, configs, df, feature_cols, splits,
                 scores.append(roc_auc_score(y_te, y_proba, multi_class="ovr", average="macro"))
             except ValueError:
                 scores.append(0.5)
-
         mean_score = np.mean(scores)
         if mean_score > best_score:
             best_score = mean_score
             best_config = config
-
     if verbose:
         print(f"\n  {name}: best ROC-AUC={best_score:.4f}, params={best_config}")
     return {"best_score": best_score, "best_params": best_config}
-
-
 def print_summary(results: dict):
     """Print comparison table."""
     print(f"\n{'='*60}")
@@ -391,8 +339,6 @@ def print_summary(results: dict):
     for name, r in results.items():
         print(f"{name:<30} {r['accuracy']:>10.4f} {r['f1_macro']:>10.4f} {r['roc_auc']:>10.4f}")
     print()
-
-
 def get_feature_importance(results: dict, feature_names: list) -> dict:
     """
     Extract feature importances from tree-based models.
@@ -409,12 +355,6 @@ def get_feature_importance(results: dict, feature_names: list) -> dict:
             for feat, val in pairs[:10]:
                 print(f"  {feat:<30} {val:.4f}")
     return importances
-
-
-# ---------------------------------------------------------------------------
-# CP3: Stacking Ensemble
-# ---------------------------------------------------------------------------
-
 def get_stacking_model(seed: int = RANDOM_SEED) -> StackingClassifier:
     """
     Stacking ensemble:
@@ -462,14 +402,8 @@ def get_stacking_model(seed: int = RANDOM_SEED) -> StackingClassifier:
         final_estimator=meta,
         cv=3,
         passthrough=False,
-        n_jobs=1,  # avoid fork issues on MacOS
+        n_jobs=1,  
     )
-
-
-# ---------------------------------------------------------------------------
-# CP3: Threshold optimisation (on val set, NOT test)
-# ---------------------------------------------------------------------------
-
 def optimize_threshold(
     y_proba: np.ndarray,
     future_returns,
@@ -482,7 +416,6 @@ def optimize_threshold(
     Grid-search the confidence threshold that maximises hit_rate on a
     held-out validation set.  Only thresholds that produce at least
     `min_trades` trades are considered.
-
     Returns (best_threshold, best_hit_rate, all_results_list).
     """
     thresholds = np.arange(p_min, p_max, step)
@@ -502,12 +435,6 @@ def optimize_threshold(
             best_hr = bt["hit_rate"]
             best_thresh = t_f
     return best_thresh, best_hr, results
-
-
-# ---------------------------------------------------------------------------
-# Iteration 6: Improved Stacking v2 — class balancing + LightGBM
-# ---------------------------------------------------------------------------
-
 def get_stacking_model_v2(seed: int = RANDOM_SEED, use_lgbm: bool = True) -> StackingClassifier:
     """
     Improved Stacking Ensemble (v2):
@@ -548,10 +475,9 @@ def get_stacking_model_v2(seed: int = RANDOM_SEED, use_lgbm: bool = True) -> Sta
             ),
         ),
     ]
-
     if use_lgbm:
         try:
-            import lightgbm as lgb  # noqa: PLC0415
+            import lightgbm as lgb  
             estimators.append((
                 "lgbm",
                 lgb.LGBMClassifier(
@@ -563,7 +489,6 @@ def get_stacking_model_v2(seed: int = RANDOM_SEED, use_lgbm: bool = True) -> Sta
             print("  [INFO] LightGBM added to Stacking v2.")
         except Exception as exc:
             print(f"  [WARN] LightGBM unavailable: {exc}")
-
     meta = LogisticRegression(
         C=0.5, max_iter=1000, random_state=seed,
         solver="lbfgs", multi_class="multinomial",
@@ -575,8 +500,6 @@ def get_stacking_model_v2(seed: int = RANDOM_SEED, use_lgbm: bool = True) -> Sta
         passthrough=False,
         n_jobs=1,
     )
-
-
 def get_top_feature_indices(
     stack: StackingClassifier,
     feature_names: list,
@@ -591,12 +514,10 @@ def get_top_feature_indices(
     for _name, model in stack.named_estimators_.items():
         if hasattr(model, "feature_importances_"):
             imp = model.feature_importances_
-            normed = imp / (imp.sum() + 1e-12)  # normalise
+            normed = imp / (imp.sum() + 1e-12)  
             all_importances.append(normed)
-
     if not all_importances:
         return np.arange(len(feature_names)), feature_names
-
     avg_imp = np.mean(all_importances, axis=0)
     top_idx = np.argsort(avg_imp)[::-1][:top_k]
     top_names = [feature_names[i] for i in top_idx]

@@ -1,15 +1,11 @@
-# Обработка данных: загрузка, очистка, признаки, таргет.
 import numpy as np
 import pandas as pd
 from pathlib import Path
-
 RANDOM_SEED = 42
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 HORIZON = 1
-
-
 def load_raw_data(filename: str = "gold_data_1h_cleaned.csv") -> pd.DataFrame:
     """Загрузка данных."""
     path = RAW_DIR / filename
@@ -17,8 +13,6 @@ def load_raw_data(filename: str = "gold_data_1h_cleaned.csv") -> pd.DataFrame:
     df["DateTime"] = pd.to_datetime(df["DateTime"], utc=True)
     df = df.sort_values("DateTime").reset_index(drop=True)
     return df
-
-
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     """Очистка данных."""
     df = df.drop_duplicates(subset="DateTime", keep="first")
@@ -26,8 +20,6 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=["Open", "High", "Low", "Close"])
     df = df.sort_values("DateTime").reset_index(drop=True)
     return df
-
-
 def create_target(df: pd.DataFrame, horizon: int = HORIZON, threshold: float = 0.001) -> pd.DataFrame:
     """
     Создание таргета:
@@ -50,8 +42,6 @@ def create_target(df: pd.DataFrame, horizon: int = HORIZON, threshold: float = 0
     choices = [2, 0]
     df["target"] = np.select(conditions, choices, default=1)
     return df
-
-
 def _compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     """Расчет RSI."""
     delta = series.diff()
@@ -61,8 +51,6 @@ def _compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     avg_loss = loss.ewm(alpha=1 / period, min_periods=period).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
     return 100 - (100 / (1 + rs))
-
-
 def _compute_macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
     """Расчет MACD."""
     ema_fast = series.ewm(span=fast, min_periods=fast).mean()
@@ -71,8 +59,6 @@ def _compute_macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int
     signal_line = macd_line.ewm(span=signal, min_periods=signal).mean()
     histogram = macd_line - signal_line
     return macd_line, signal_line, histogram
-
-
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Генерация признаков.
@@ -83,27 +69,22 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
     close = df["Close"]
-
     df["return_1"] = close.pct_change(1)
     df["return_2"] = close.pct_change(2)
     df["return_4"] = close.pct_change(4)
     df["return_8"] = close.pct_change(8)
     df["return_24"] = close.pct_change(24)
     df["return_1_diff"] = df["return_1"].diff()
-
     pos_ret = (df["return_1"] > 0).astype(int)
     df["pos_bars_last_4"] = pos_ret.rolling(4).sum()
-
     tr1 = df["High"] - df["Low"]
     df["body_to_range"] = (df["Close"] - df["Open"]).abs() / tr1.replace(0, np.nan)
     tr2 = (df["High"] - close.shift(1)).abs()
     tr3 = (df["Low"] - close.shift(1)).abs()
     df["tr"] = pd.DataFrame({"tr1": tr1, "tr2": tr2, "tr3": tr3}).max(axis=1)
     df["atr_14"] = df["tr"].rolling(14).mean() / close
-
     for lag in [1, 2, 3, 4, 8]:
         df[f"close_lag_{lag}_ratio"] = close / close.shift(lag)
-
     for window in [6, 12, 24, 48]:
         df[f"rolling_mean_{window}"] = close.rolling(window).mean()
         df[f"rolling_std_{window}"] = close.rolling(window).std()
@@ -113,26 +94,20 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
             vol_mean = df["Volume"].rolling(window).mean()
             vol_std = df["Volume"].rolling(window).std()
             df[f"zscore_vol_{window}"] = (df["Volume"] - vol_mean) / vol_std.replace(0, np.nan)
-
     df["hl_range"] = tr1 / close
     df["hl_range_rolling_6"] = df["hl_range"].rolling(6).mean()
-
     df["volume_ma_6"] = df["Volume"].rolling(6).mean()
     df["volume_ma_24"] = df["Volume"].rolling(24).mean()
     df["volume_ratio_6"] = df["Volume"] / df["volume_ma_6"].replace(0, np.nan)
     df["volume_ratio_24"] = df["Volume"] / df["volume_ma_24"].replace(0, np.nan)
-
     df["upper_shadow"] = (df["High"] - df[["Open", "Close"]].max(axis=1)) / df["Close"]
     df["lower_shadow"] = (df[["Open", "Close"]].min(axis=1) - df["Low"]) / df["Close"]
-
     df["rsi_14"] = _compute_rsi(close, period=14)
     df["rsi_6"] = _compute_rsi(close, period=6)
-
     macd_line, signal_line, macd_hist = _compute_macd(close)
     df["macd"] = macd_line / close
     df["macd_signal"] = signal_line / close
     df["macd_hist"] = macd_hist / close
-
     for window in [12, 24]:
         bb_mean = close.rolling(window).mean()
         bb_std = close.rolling(window).std()
@@ -140,50 +115,37 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         df[f"bb_lower_{window}"] = (close - (bb_mean - 2 * bb_std)) / close
         df[f"bb_width_{window}"] = (4 * bb_std) / close
         df[f"bb_position_{window}"] = (close - (bb_mean - 2 * bb_std)) / (4 * bb_std).replace(0, np.nan)
-
     df["return_48"] = close.pct_change(48)
     df["return_72"] = close.pct_change(72)
-
     df["momentum_accel_4"] = df["return_1"] - df["return_1"].shift(4)
     df["momentum_accel_12"] = df["return_1"] - df["return_1"].shift(12)
-
     df["hour"] = df["DateTime"].dt.hour
     df["dayofweek"] = df["DateTime"].dt.dayofweek
-
-    # Cyclical encoding (better than raw int for periodic features)
     df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
     df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
     df["dow_sin"] = np.sin(2 * np.pi * df["dayofweek"] / 5)
     df["dow_cos"] = np.cos(2 * np.pi * df["dayofweek"] / 5)
-
-    # Trading session indicators (UTC)
     h = df["hour"]
     df["session_asia"] = ((h >= 22) | (h < 8)).astype(int)
     df["session_europe"] = ((h >= 8) & (h < 16)).astype(int)
     df["session_ny"] = ((h >= 13) & (h < 21)).astype(int)
     df["session_overlap_eu_ny"] = ((h >= 13) & (h < 16)).astype(int)
-
     return df
-
-
 def add_external_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Build external factor features for each of the 5 macro/cross-market series:
     dxy, vix, tnx, silver, oil.
-
     For each series (where it makes sense) we add:
       - return_1d:     1-day log return (prev daily value)
       - return_5d:     5-day log return
       - return_20d:    20-day log return
       - zscore_20d:    z-score of the price over a 20-day rolling window
       - dev_from_ma20: deviation from 20-day moving average (normalized)
-
     These are computed on the already-merged (hourly-granularity) columns,
     which carry the last known daily close via merge_asof.  Since multiple
     hourly rows share the same daily value, we compute the rolling statistics
     on the deduplicated daily series and then re-merge, so the windows count
     actual trading days, not hours.
-
     Additionally we add cross-market (inter-market) features:
       - gold_minus_dxy_return:   gold return_1h minus dxy daily return
       - gold_minus_silver_return: gold return_1h minus silver daily return
@@ -194,25 +156,18 @@ def add_external_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     external_names = ["dxy", "vix", "tnx", "silver", "oil"]
     present = [n for n in external_names if n in df.columns]
-
     if not present:
         return df
-
     for name in present:
         col = df[name]
-        # Daily returns (shift(1) avoids lookahead; each row already has yesterday's close)
         df[f"{name}_ret1d"]      = col.pct_change(1)
         df[f"{name}_ret5d"]      = col.pct_change(5)
         df[f"{name}_ret20d"]     = col.pct_change(20)
-        # Rolling stats
         ma20 = col.rolling(20, min_periods=5).mean()
         std20 = col.rolling(20, min_periods=5).std()
         df[f"{name}_zscore20"]   = (col - ma20) / std20.replace(0, np.nan)
         df[f"{name}_dev_ma20"]   = (col - ma20) / ma20.replace(0, np.nan)
-
-    # Cross-market / inter-market features
     gold_ret = df["return_1"]
-
     if "dxy" in df.columns:
         df["gold_minus_dxy_ret"] = gold_ret - df["dxy_ret1d"]
     if "silver" in df.columns:
@@ -222,8 +177,6 @@ def add_external_features(df: pd.DataFrame) -> pd.DataFrame:
         df["vix_level"] = df["vix"]
     if "tnx" in df.columns:
         df["tnx_change1d"] = df["tnx"].diff(1)
-
-    # Скользящие корреляции (Rolling Correlations)
     for name in ["dxy", "silver", "tnx"]:
         if name in df.columns:
             for window in [24, 120]:
@@ -231,14 +184,9 @@ def add_external_features(df: pd.DataFrame) -> pd.DataFrame:
                     df["return_1"].rolling(window)
                     .corr(df[f"{name}_ret1d"])
                 )
-
-    # Индикатор режима волатильности
     if "atr_14" in df.columns:
         df["vol_regime"] = df["atr_14"] / df["atr_14"].rolling(120).mean().replace(0, np.nan)
-
     return df
-
-
 def get_feature_columns(df: pd.DataFrame) -> list:
     """Return list of feature column names (everything except meta/target)."""
     exclude = {
@@ -248,12 +196,9 @@ def get_feature_columns(df: pd.DataFrame) -> list:
         "target", "future_return", "tr",
         "rolling_mean_6", "rolling_mean_12", "rolling_mean_24", "rolling_mean_48",
         "volume_ma_6", "volume_ma_24",
-        # raw external columns (we use derived features instead)
         "dxy", "vix", "tnx", "silver", "oil",
     }
     return [c for c in df.columns if c not in exclude]
-
-
 def time_split(df: pd.DataFrame, test_frac: float = 0.2):
     """
     Chronological split: first (1-test_frac) rows for training,
@@ -264,8 +209,6 @@ def time_split(df: pd.DataFrame, test_frac: float = 0.2):
     train = df.iloc[:split_idx].copy()
     test = df.iloc[split_idx:].copy()
     return train, test
-
-
 def three_way_split(df: pd.DataFrame, val_frac: float = 0.15, test_frac: float = 0.20):
     """
     Chronological train / val / test split with no shuffling.
@@ -278,8 +221,6 @@ def three_way_split(df: pd.DataFrame, val_frac: float = 0.15, test_frac: float =
     val = df.iloc[val_start:test_start].copy()
     test = df.iloc[test_start:].copy()
     return train, val, test
-
-
 def walk_forward_split(df: pd.DataFrame, n_splits: int = 5, test_size: int = None):
     """
     Walk-forward (expanding window) cross-validation splits.
@@ -301,8 +242,6 @@ def walk_forward_split(df: pd.DataFrame, n_splits: int = 5, test_size: int = Non
             continue
         splits.append((list(range(0, train_end)), list(range(test_start, test_end))))
     return splits
-
-
 def prepare_features(df: pd.DataFrame):
     """
     Apply feature engineering, drop NaN rows, return cleaned df and feature column names.
@@ -311,8 +250,6 @@ def prepare_features(df: pd.DataFrame):
     feature_cols = get_feature_columns(df)
     df = df.dropna(subset=feature_cols).reset_index(drop=True)
     return df, feature_cols
-
-
 def load_external_factors() -> pd.DataFrame:
     """Load combined external factors CSV."""
     path = RAW_DIR / "external" / "external_factors_combined.csv"
@@ -320,8 +257,6 @@ def load_external_factors() -> pd.DataFrame:
     df["DateTime"] = pd.to_datetime(df["DateTime"], utc=True)
     df = df.sort_values("DateTime").reset_index(drop=True)
     return df
-
-
 def _merge_external(gold_df: pd.DataFrame, external_df: pd.DataFrame) -> pd.DataFrame:
     """
     Merge daily external factors into hourly gold data without lookahead leakage.
@@ -338,8 +273,6 @@ def _merge_external(gold_df: pd.DataFrame, external_df: pd.DataFrame) -> pd.Data
     ext_cols = [c for c in external_df.columns if c != "DateTime"]
     merged[ext_cols] = merged[ext_cols].ffill()
     return merged
-
-
 def build_dataset(horizon: int = HORIZON, threshold: float = 0.001,
                   test_frac: float = 0.2, use_external: bool = True):
     """
@@ -349,20 +282,15 @@ def build_dataset(horizon: int = HORIZON, threshold: float = 0.001,
     """
     df = load_raw_data()
     df = clean_data(df)
-
     if use_external:
         external_df = load_external_factors()
         df = _merge_external(df, external_df)
-
     df = add_features(df)
-
     if use_external:
         df = add_external_features(df)
-
     df = create_target(df, horizon=horizon, threshold=threshold)
     feature_cols = get_feature_columns(df)
     df = df.dropna(subset=feature_cols).reset_index(drop=True)
-
     train, test = time_split(df, test_frac=test_frac)
     X_train = train[feature_cols].values
     y_train = train["target"].values
@@ -370,8 +298,6 @@ def build_dataset(horizon: int = HORIZON, threshold: float = 0.001,
     y_test = test["target"].values
     future_rets_test = test["future_return"]
     return X_train, y_train, X_test, y_test, feature_cols, df, future_rets_test
-
-
 def build_dataset_3way(
     horizon: int = HORIZON, threshold: float = 0.001,
     val_frac: float = 0.15, test_frac: float = 0.20,
@@ -385,22 +311,16 @@ def build_dataset_3way(
     """
     df = load_raw_data()
     df = clean_data(df)
-
     if use_external:
         external_df = load_external_factors()
         df = _merge_external(df, external_df)
-
     df = add_features(df)
-
     if use_external:
         df = add_external_features(df)
-
     df = create_target(df, horizon=horizon, threshold=threshold)
     feature_cols = get_feature_columns(df)
     df = df.dropna(subset=feature_cols).reset_index(drop=True)
-
     train, val, test = three_way_split(df, val_frac=val_frac, test_frac=test_frac)
-
     X_train = train[feature_cols].values
     y_train = train["target"].values
     X_val = val[feature_cols].values
@@ -409,11 +329,8 @@ def build_dataset_3way(
     y_test = test["target"].values
     fut_rets_val = val["future_return"].reset_index(drop=True)
     fut_rets_test = test["future_return"].reset_index(drop=True)
-
     return (X_train, y_train, X_val, y_val, X_test, y_test,
             feature_cols, df, fut_rets_val, fut_rets_test)
-
-
 def build_full_df(horizon: int = HORIZON, threshold: float = 0.001,
                   use_external: bool = True):
     """
@@ -422,16 +339,12 @@ def build_full_df(horizon: int = HORIZON, threshold: float = 0.001,
     """
     df = load_raw_data()
     df = clean_data(df)
-
     if use_external:
         external_df = load_external_factors()
         df = _merge_external(df, external_df)
-
     df = add_features(df)
-
     if use_external:
         df = add_external_features(df)
-
     df = create_target(df, horizon=horizon, threshold=threshold)
     feature_cols = get_feature_columns(df)
     df = df.dropna(subset=feature_cols).reset_index(drop=True)
