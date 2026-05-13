@@ -25,12 +25,10 @@ def get_date_range(file_path):
         try:
             df = pd.read_csv(file_path)
             if 'DateTime' in df.columns:
-                # Ensure UTC to unify timezones
                 dt_series = pd.to_datetime(df['DateTime'], utc=True)
                 min_date = dt_series.min()
                 max_date = dt_series.max()
                 
-                # Buffer 3 days
                 start_date = min_date - timedelta(days=3)
                 end_date = max_date + timedelta(days=3)
                 
@@ -43,7 +41,6 @@ def get_date_range(file_path):
     else:
         logger.warning(f"File {file_path} does not exist.")
             
-    # Fallback to last 730 days
     end_date = pd.Timestamp.utcnow()
     start_date = end_date - timedelta(days=730)
     logger.info(f"Using fallback date range: {start_date} to {end_date}")
@@ -56,16 +53,12 @@ def fetch_ticker_data(ticker, start_date, end_date, interval):
     """
     logger.info(f"Fetching {ticker} with interval {interval}...")
     try:
-        # yfinance expects date strings like 'YYYY-MM-DD'
         start_str = start_date.strftime('%Y-%m-%d')
-        # Add 1 day to end_date string to ensure it's inclusive of the actual end_date day
         end_str = (end_date + timedelta(days=1)).strftime('%Y-%m-%d')
         
         data = yf.download(ticker, start=start_str, end=end_str, interval=interval, progress=False)
         
-        # Flatten MultiIndex columns if present (can happen in newer yfinance versions)
         if isinstance(data.columns, pd.MultiIndex):
-            # Take the first level if the second is the ticker name
             data.columns = [col[0] for col in data.columns]
             
         if data.empty:
@@ -74,7 +67,6 @@ def fetch_ticker_data(ticker, start_date, end_date, interval):
             
         data = data.reset_index()
         
-        # Identify the datetime column
         datetime_col = None
         for col in ['Date', 'Datetime', 'index']:
             if col in data.columns:
@@ -87,12 +79,10 @@ def fetch_ticker_data(ticker, start_date, end_date, interval):
             
         data.rename(columns={datetime_col: 'DateTime'}, inplace=True)
         
-        # Standardize timezone to UTC
         data['DateTime'] = pd.to_datetime(data['DateTime'], utc=True)
             
         data.sort_values('DateTime', inplace=True)
         
-        # Clean up any potential duplicate column names after flattening
         data = data.loc[:, ~data.columns.duplicated()]
         
         return data
@@ -126,7 +116,6 @@ def main():
         data = fetch_ticker_data(ticker, start_date, end_date, "1h")
         interval_used = "1h"
         
-        # Check if 1h was successful and has enough data
         if data is None or len(data) < 10:
             logger.info(f"1h data for {ticker} is insufficient or failed. Falling back to 1d.")
             data = fetch_ticker_data(ticker, start_date, end_date, "1d")
@@ -138,7 +127,6 @@ def main():
             data.to_csv(out_path, index=False)
             logger.info(f"Saved {file_name} to {out_dir}")
             
-            # Prepare for combined file
             if 'Close' in data.columns:
                 subset = data[['DateTime', 'Close']].copy()
                 subset.rename(columns={'Close': name}, inplace=True)
@@ -181,7 +169,6 @@ def main():
             else:
                 combined_df = pd.merge(combined_df, df, on='DateTime', how='outer')
                 
-        # Sort values
         combined_df.sort_values('DateTime', inplace=True)
         
         combined_path = os.path.join(out_dir, 'external_factors_combined.csv')
@@ -191,7 +178,6 @@ def main():
     else:
         logger.warning("No data downloaded. Combined file will not be created.")
         
-    # Print the final report
     print("\n" + "="*60)
     print("DOWNLOAD REPORT")
     print("="*60)

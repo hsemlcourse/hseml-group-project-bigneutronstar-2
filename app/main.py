@@ -42,7 +42,6 @@ def get_latest_data():
     try:
         df, _ = build_full_df(horizon=24, threshold=0.002, use_external=True)
         
-        # Get 1 month of data (approx 720 hours) to allow the UI to select periods
         recent_data = df.tail(720).copy()
         
         model = model_artifact["model"]

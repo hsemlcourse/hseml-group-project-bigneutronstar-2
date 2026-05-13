@@ -356,13 +356,7 @@ def get_feature_importance(results: dict, feature_names: list) -> dict:
                 print(f"  {feat:<30} {val:.4f}")
     return importances
 def get_stacking_model(seed: int = RANDOM_SEED) -> StackingClassifier:
-    """
-    Stacking ensemble:
-      Base:  RF, GradientBoosting, CatBoost, ExtraTrees
-      Meta:  LogisticRegression (trained on out-of-fold predictions)
-    n_jobs=1 on base models to avoid MacOS multiprocessing fork issues
-    inside the stacking CV loop.
-    """
+    """Stacking Ensemble: RF, GB, CatBoost, ExtraTrees -> LogisticRegression."""
     estimators = [
         (
             "rf",
@@ -436,12 +430,7 @@ def optimize_threshold(
             best_thresh = t_f
     return best_thresh, best_hr, results
 def get_stacking_model_v2(seed: int = RANDOM_SEED, use_lgbm: bool = True) -> StackingClassifier:
-    """
-    Improved Stacking Ensemble (v2):
-      - class_weight='balanced' on all base models (helps flat-class dominance)
-      - LightGBM added as 5th estimator if available
-      - Slightly more trees, less regularization for better signal capture
-    """
+    """Stacking Ensemble v2 с балансировкой классов и опциональным LightGBM."""
     estimators = [
         (
             "rf",
@@ -505,11 +494,7 @@ def get_top_feature_indices(
     feature_names: list,
     top_k: int = 50,
 ):
-    """
-    Aggregate feature importances from all tree-based models in a fitted
-    StackingClassifier and return the indices + names of the top_k features.
-    Uses mean importance across models (normalised within each model first).
-    """
+    """Возвращает индексы и имена top_k признаков по усредненной важности."""
     all_importances = []
     for _name, model in stack.named_estimators_.items():
         if hasattr(model, "feature_importances_"):

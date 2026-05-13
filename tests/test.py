@@ -1,7 +1,4 @@
-"""
-Sanity-check tests for the preprocessing and modeling pipeline (CP2).
-Run with: pytest tests/test.py -v
-"""
+
 
 import sys
 import numpy as np
@@ -39,7 +36,6 @@ def test_load_raw_data():
 def test_clean_data_removes_zero_volume():
     """clean_data should remove rows with Volume <= 0."""
     df_raw = load_raw_data()
-    # Inject a dummy row with zero volume to ensure there's something to clean
     bad_row = df_raw.iloc[0:1].copy()
     bad_row["DateTime"] = df_raw["DateTime"].max() + pd.Timedelta(hours=1)
     bad_row["Volume"] = 0
@@ -153,9 +149,7 @@ def test_multiple_horizons():
         assert set(np.unique(y_train)).issubset({0, 1, 2})
 
 
-# -----------------------------------------------------------------------------
-# External factor tests (CP2)
-# -----------------------------------------------------------------------------
+
 
 def test_load_external_factors():
     """External factors CSV should load with expected columns."""

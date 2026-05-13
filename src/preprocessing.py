@@ -132,27 +132,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     df["session_overlap_eu_ny"] = ((h >= 13) & (h < 16)).astype(int)
     return df
 def add_external_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Build external factor features for each of the 5 macro/cross-market series:
-    dxy, vix, tnx, silver, oil.
-    For each series (where it makes sense) we add:
-      - return_1d:     1-day log return (prev daily value)
-      - return_5d:     5-day log return
-      - return_20d:    20-day log return
-      - zscore_20d:    z-score of the price over a 20-day rolling window
-      - dev_from_ma20: deviation from 20-day moving average (normalized)
-    These are computed on the already-merged (hourly-granularity) columns,
-    which carry the last known daily close via merge_asof.  Since multiple
-    hourly rows share the same daily value, we compute the rolling statistics
-    on the deduplicated daily series and then re-merge, so the windows count
-    actual trading days, not hours.
-    Additionally we add cross-market (inter-market) features:
-      - gold_minus_dxy_return:   gold return_1h minus dxy daily return
-      - gold_minus_silver_return: gold return_1h minus silver daily return
-      - gold_silver_ratio:       gold Close / silver price
-      - vix_zscore_20d:          20-day z-score of VIX (convenience alias)
-      - tnx_change_1d:           1-day change in TNX yield (daily)
-    """
+    """Добавляет производные признаки на основе внешних факторов (dxy, vix, tnx, silver, oil)."""
     df = df.copy()
     external_names = ["dxy", "vix", "tnx", "silver", "oil"]
     present = [n for n in external_names if n in df.columns]
@@ -258,12 +238,7 @@ def load_external_factors() -> pd.DataFrame:
     df = df.sort_values("DateTime").reset_index(drop=True)
     return df
 def _merge_external(gold_df: pd.DataFrame, external_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Merge daily external factors into hourly gold data without lookahead leakage.
-    Uses merge_asof with direction='backward': each hourly row gets the most recent
-    daily value that is strictly before or at that hour's timestamp.
-    Then forward-fills any remaining gaps.
-    """
+    """Мержит дневные внешние факторы в часовые данные золота через merge_asof без лукэхеда."""
     gold_sorted = gold_df.sort_values("DateTime").copy()
     ext_sorted = external_df.sort_values("DateTime").copy()
     merged = pd.merge_asof(

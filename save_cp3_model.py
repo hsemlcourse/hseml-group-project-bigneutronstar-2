@@ -1,7 +1,4 @@
-"""
-Script to train the final CP3 model (Stacking Ensemble) on the full dataset
-and save it for deployment.
-"""
+
 import sys
 import pickle
 from pathlib import Path
@@ -28,8 +25,6 @@ def save_model():
         val_frac=0.15, test_frac=0.20, use_external=True
     )
     
-    # For final deployment, we should train on ALL data (train + val + test)
-    # to have the most up-to-date information.
     import numpy as np
     X_all = np.vstack([X_train, X_val, X_test])
     y_all = np.concatenate([y_train, y_val, y_test])
@@ -38,7 +33,6 @@ def save_model():
     model = get_stacking_model(seed=RANDOM_SEED)
     model.fit(X_all, y_all)
     
-    # Save the model and the feature columns
     artifact = {
         "model": model,
         "feature_cols": list(feature_cols),
